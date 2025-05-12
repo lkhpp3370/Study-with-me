@@ -50,6 +50,22 @@ exports.requestResetCode = async (req, res) => {
   }
 };
 
+// ✅ 비밀번호 재설정 코드 확인 (새로 추가)
+exports.verifyResetCode = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user || String(user.resetCode).trim() !== String(code).trim()) {
+      return res.status(400).json({ message: '인증 코드가 올바르지 않습니다.' });
+    }
+
+    res.json({ verified: true });
+  } catch (err) {
+    res.status(500).json({ message: '서버 오류', error: err.message });
+  }
+};
+
 // 비밀번호 재설정
 exports.resetPassword = async (req, res) => {
   try {
