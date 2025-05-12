@@ -25,19 +25,26 @@ export default function ForgotPasswordScreen() {
 
   // ✅ 코드 확인 (서버 자체 코드 확인 API가 없다면 그냥 코드 입력만 확인하는 형태로 사용 가능)
   const handleVerifyCode = async () => {
-    try {
-      // 👉 실제 개발 시에는 /auth/verify-reset-code 라는 API를 별도로 만들면 좋음.
-      // 지금은 서버에서 코드 확인은 reset-password 단계에서만 하므로 임시로 true 처리
-      if (!resetCode) {
-        Alert.alert('오류', '인증 코드를 입력해주세요.');
-        return;
-      }
-      setCodeVerified(true);
-      Alert.alert('성공', '코드 입력 완료. 새 비밀번호를 입력하세요.');
-    } catch (error) {
-      Alert.alert('실패', error.response?.data?.message || '서버 오류');
+  try {
+    if (!resetCode) {
+      Alert.alert('오류', '인증 코드를 입력해주세요.');
+      return;
     }
-  };
+
+    // ✅ 서버에 코드 검증 요청
+    const response = await axios.post('http://192.168.45.173:3000/auth/verify-reset-code', {
+      email,
+      code: resetCode
+    });
+
+    if (response.data.verified) {
+      setCodeVerified(true);
+      Alert.alert('성공', '코드가 확인되었습니다. 새 비밀번호를 입력하세요.');
+    }
+  } catch (error) {
+    Alert.alert('실패', error.response?.data?.message || '서버 오류');
+  }
+};
 
   // ✅ 비밀번호 변경
   const handleResetPassword = async () => {
