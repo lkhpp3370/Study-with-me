@@ -9,7 +9,8 @@ const {
   verifyEmailCode,
   checkEmail,  // 이메일 중복 확인 라우터 추가
   checkUsername,
-  registerUser
+  registerUser,
+  verifyResetCode
 } = require('../controllers/authController');
 
 // 로그인
@@ -18,6 +19,7 @@ router.post('/login', loginUser);
 // 비밀번호 재설정
 router.post('/request-reset', requestResetCode);
 router.post('/reset-password', resetPassword);
+router.post('/verify-reset-code', verifyResetCode);
 
 // 이메일 인증
 router.post('/request-email-verification', requestEmailVerification);
