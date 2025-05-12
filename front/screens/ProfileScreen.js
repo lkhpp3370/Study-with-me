@@ -22,7 +22,7 @@ const ProfileScreen = () => {
                 const userId = await AsyncStorage.getItem('userId');
                 if (!userId) return;
 
-                const response = await axios.get(`http://192.168.45.173:3000/profile/${userId}`); // ✅ IP 수정
+                const response = await axios.get(`http://192.168.XX.XXX:3000/profile/${userId}`); // ✅ IP 수정
                 setProfileData(response.data);
             } catch (error) {
                 console.error('❌ 프로필 데이터 불러오기 실패:', error.message);
