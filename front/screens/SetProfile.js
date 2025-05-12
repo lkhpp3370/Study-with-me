@@ -15,7 +15,7 @@ export default function SetProfile() {
     const fetchProfile = async () => {
       try {
         const userId = await AsyncStorage.getItem('userId');
-        const response = await axios.get(`http://192.168.45.173:3000/profile/${userId}`);
+        const response = await axios.get(`http://192.168.XX.XXX:3000/profile/${userId}`);
         setUsername(response.data.username);
         setMajor(response.data.major || '');
         setGrade(response.data.grade ? String(response.data.grade) : '');
@@ -29,7 +29,7 @@ export default function SetProfile() {
   const handleSave = async () => {
     try {
       const userId = await AsyncStorage.getItem('userId');
-      await axios.put(`http://192.168.45.173:3000/profile/${userId}`, {
+      await axios.put(`http://192.168.XX.XXX:3000/profile/${userId}`, {
         username,
         major,
         grade
