@@ -35,14 +35,14 @@ export default function SignUpScreen() {
       }
 
       // 이메일 중복 체크
-      const res = await axios.post('http://192.168.XX.XXX:3000/auth/check-email', { email });
+      const res = await axios.post('http://192.168.45.173:3000/auth/check-email', { email });
       if (res.data.exists) {
         Alert.alert('중복 이메일', '이미 가입된 이메일입니다.');
         return;
       }
 
       // 중복이 없으면 이메일 인증 코드 요청
-      await axios.post('http://192.168.XX.XXX:3000/auth/request-email-verification', { email });
+      await axios.post('http://192.168.45.173:3000/auth/request-email-verification', { email });
       Alert.alert('성공', '학교 이메일로 인증 코드가 발송되었습니다.');
     } catch (error) {
       Alert.alert('오류', error.response?.data?.message || '서버 오류');
@@ -53,7 +53,7 @@ export default function SignUpScreen() {
   const handleEmailCodeCheck = async () => {
     try {
       const res = await axios.post(
-        'http://192.168.XX.XXX:3000/auth/verify-email-code',
+        'http://192.168.45.173:3000/auth/verify-email-code',
         { email, code: verificationCode },
         { headers: { 'Content-Type': 'application/json' } }
       );
@@ -75,7 +75,7 @@ export default function SignUpScreen() {
       return;
     }
     try {
-      await axios.post('http://192.168.XX.XXX:3000/auth/check-username', { username });
+      await axios.post('http://192.168.45.173:3000/auth/check-username', { username });
       Alert.alert('사용 가능', '사용 가능한 닉네임입니다.');
       setUsernameChecked(true);
     } catch (error) {

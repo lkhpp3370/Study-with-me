@@ -16,7 +16,7 @@ export default function ForgotPasswordScreen() {
   // ✅ 이메일로 인증 코드 요청
   const handleRequestCode = async () => {
     try {
-      await axios.post('http://192.168.XX.XXX:3000/auth/request-reset', { email });
+      await axios.post('http://192.168.45.173:3000/auth/request-reset', { email });
       Alert.alert('성공', '이메일로 인증 코드가 발송되었습니다.');
     } catch (error) {
       Alert.alert('실패', error.response?.data?.message || '서버 오류');
@@ -32,7 +32,7 @@ export default function ForgotPasswordScreen() {
     }
 
     // ✅ 서버에 코드 검증 요청
-    const response = await axios.post('http://192.168.XX.XXX:3000/auth/verify-reset-code', {
+    const response = await axios.post('http://192.168.45.173:3000/auth/verify-reset-code', {
       email,
       code: resetCode
     });
