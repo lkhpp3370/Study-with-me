@@ -1,4 +1,4 @@
-// seed.js
+// backend/seed.js
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 dotenv.config();
@@ -22,10 +22,10 @@ async function seedDatabase() {
     // ✅ 샘플 User 생성
     const user = new User({
       username: 'Tester',
-      email: 'tester@pukyong.ac.kr',    // ✅ 서버 규칙에 맞춤
+      email: 'tester@pukyong.ac.kr',
       password: 'test1234',
       grade: 3,
-      major: '컴퓨터공학과',
+      major: '정보융합대학',
       gender: '남',
       profile_image: '',
       bio: '안녕하세요, 백엔드 개발자입니다.',
