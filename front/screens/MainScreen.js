@@ -109,7 +109,7 @@ export default function MainScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f6f7', paddingTop: 35 },
-  header: { height: 50, backgroundColor: '#0a2a44', flexDirection: 'row',
+  header: { height: 50, backgroundColor: '#001f3f', flexDirection: 'row',
     alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
   username: { color: 'white', fontSize: 16 },
   calendar: { marginTop: 10, borderRadius: 10, marginHorizontal: 16 },
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   scheduleText: { marginTop: 5, color: '#777' },
   sectionTitle: { marginLeft: 16, marginTop: 10, fontWeight: 'bold', fontSize: 16 },
-  studyList: { flex: 1, paddingHorizontal: 16 },
+  studyList: { flex: 1, paddingHorizontal: 16},
   studyItem: { backgroundColor: 'white', padding: 10, borderRadius: 8, marginBottom: 8 },
   studyTitle: { fontSize: 16, fontWeight: 'bold' },
   studyDesc: { fontSize: 13, color: '#555' },

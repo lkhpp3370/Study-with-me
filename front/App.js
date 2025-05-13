@@ -1,21 +1,20 @@
-// ✅ 1. App.js (최종 개선본)
-
+// App.js
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
-// ✅ screens import
 import LoginScreen from './screens/LoginScreen';
 import MainScreen from './screens/MainScreen';
 import SearchCategories from './screens/SearchCategories';
+import SearchScreen from './screens/SearchScreen';
 import ChatScreen from './screens/ChatScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import SetProfile from './screens/SetProfile';
 import SettingScreen from './screens/SettingScreen';
-import NotificationScreen from './screens/NotificationScreen'; // ✅ 추가됨
-import StudyDetailScreen from './screens/StudyDetailScreen'; // ✅ 추가됨
+import NotificationScreen from './screens/NotificationScreen';
+import StudyDetailScreen from './screens/StudyDetailScreen';
 import SignUpScreen from './screens/SignUpScreen';
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
 

@@ -129,10 +129,10 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: 'bold', textAlign: 'center', marginBottom: 30 },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, marginTop: 8 },
   inputHalf: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, marginTop: 8, flex: 1 },
-  button: { backgroundColor: '#1e3a8a', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 30 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  subButtonSmall: { backgroundColor: '#aaa', padding: 8, borderRadius: 6, alignItems: 'center', marginLeft: 8, marginTop: 8 },
-  subButtonText: { color: '#fff', fontWeight: 'bold' },
+  button: { backgroundColor: '#001f3f', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 30 },
+  buttonText: { color: '#fff', fontSize: 16},
+  subButtonSmall: { backgroundColor: '#001f3f', padding: 8, borderRadius: 6, alignItems: 'center', marginLeft: 8, marginTop: 8 },
+  subButtonText: { color: '#fff'},
   row: { flexDirection: 'row', alignItems: 'center' },
 });
 

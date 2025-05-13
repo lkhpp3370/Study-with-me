@@ -3,10 +3,12 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Switch } from 'react-native';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
+import DropDownPicker from 'react-native-dropdown-picker'; // DropDownPicker 추가
 
 export default function SignUpScreen() {
   const navigation = useNavigation();
 
+  // 상태 관리
   const [email, setEmail] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [isEmailVerified, setIsEmailVerified] = useState(false);
@@ -15,7 +17,7 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [gender, setGender] = useState('');
-  const [selectedMajor, setSelectedMajor] = useState('');
+  const [major, setMajor] = useState('');
   const [selectedGrade, setSelectedGrade] = useState('');
   const [isLeave, setIsLeave] = useState(false);
 
@@ -23,25 +25,28 @@ export default function SignUpScreen() {
   const [majorPublic, setMajorPublic] = useState(true);
   const [gradePublic, setGradePublic] = useState(true);
 
-  const majors = ['정보융합대학', '경영대학', '공과대학', '사회과학대학', '수산대학'];
+  const majors = [
+    '경영대학', '인문사회과학대학', '수산과학대학', '공학대학', '글로벌자유전공학부',
+    '정보융합대학', '자유전공학부', '자연과학대학', '환경해양대학', '학부대학', '미래융합학부'
+  ];
 
-  // ✅ 이메일 인증 요청 + 중복 이메일 체크
+  const [openMajor, setOpenMajor] = useState(false); // 드롭다운 오픈 상태
+  const [majorItems, setMajorItems] = useState(
+    majors.map(item => ({ label: item, value: item }))
+  ); // 드롭다운 항목 리스트
+
+  // 이메일 인증 요청 + 중복 이메일 체크
   const handleEmailVerify = async () => {
     try {
-      // 이메일 형식 체크
       if (!email.endsWith('@pukyong.ac.kr')) {
         Alert.alert('오류', '부경대학교 이메일만 사용 가능합니다.');
         return;
       }
-
-      // 이메일 중복 체크
       const res = await axios.post('http://192.168.45.173:3000/auth/check-email', { email });
       if (res.data.exists) {
         Alert.alert('중복 이메일', '이미 가입된 이메일입니다.');
         return;
       }
-
-      // 중복이 없으면 이메일 인증 코드 요청
       await axios.post('http://192.168.45.173:3000/auth/request-email-verification', { email });
       Alert.alert('성공', '학교 이메일로 인증 코드가 발송되었습니다.');
     } catch (error) {
@@ -49,7 +54,7 @@ export default function SignUpScreen() {
     }
   };
 
-  // ✅ 이메일 코드 확인
+  // 이메일 코드 확인
   const handleEmailCodeCheck = async () => {
     try {
       const res = await axios.post(
@@ -68,7 +73,7 @@ export default function SignUpScreen() {
     }
   };
 
-  // ✅ 닉네임 중복 확인
+  // 닉네임 중복 확인
   const handleCheckUsername = async () => {
     if (username.length < 2 || username.length > 12) {
       Alert.alert('닉네임은 2~12자 이내여야 합니다.');
@@ -84,9 +89,9 @@ export default function SignUpScreen() {
     }
   };
 
-  // ✅ 회원가입 요청
+  // 회원가입 요청
   const handleSignUp = async () => {
-    if (!email || !username || !password || !confirmPassword || !gender || !selectedMajor || !selectedGrade) {
+    if (!email || !username || !password || !confirmPassword || !gender || !major || !selectedGrade) {
       Alert.alert('모든 항목을 입력해주세요.');
       return;
     }
@@ -113,7 +118,7 @@ export default function SignUpScreen() {
         password,
         username,
         gender,
-        major: selectedMajor,
+        major,
         grade: selectedGrade,
         isLeave,
         privacy: {
@@ -131,6 +136,7 @@ export default function SignUpScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
+      {/* 이메일 입력 */}
       <Text style={styles.sectionTitle}>학교 이메일</Text>
       <View style={styles.row}>
         <TextInput style={styles.inputHalf} placeholder="이메일" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
@@ -139,6 +145,7 @@ export default function SignUpScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* 인증 코드 입력 */}
       <View style={styles.row}>
         <TextInput style={styles.inputHalf} placeholder="인증 코드 입력" value={verificationCode} onChangeText={setVerificationCode} keyboardType="numeric" />
         <TouchableOpacity style={styles.subButtonSmall} onPress={handleEmailCodeCheck}>
@@ -146,10 +153,12 @@ export default function SignUpScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* 비밀번호 설정 */}
       <Text style={styles.sectionTitle}>비밀번호 설정</Text>
       <TextInput style={styles.input} placeholder="비밀번호" secureTextEntry value={password} onChangeText={setPassword} />
       <TextInput style={styles.input} placeholder="비밀번호 확인" secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} />
 
+      {/* 닉네임 */}
       <Text style={styles.sectionTitle}>닉네임</Text>
       <View style={styles.row}>
         <TextInput style={styles.inputHalf} placeholder="닉네임 (2~12자)" value={username} onChangeText={setUsername} />
@@ -158,6 +167,7 @@ export default function SignUpScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* 성별 */}
       <View style={styles.rowBetween}>
         <Text style={styles.sectionTitle}>성별</Text>
         <View style={styles.switchRow}>
@@ -170,6 +180,7 @@ export default function SignUpScreen() {
         <TouchableOpacity onPress={() => setGender('여')}><Text style={gender === '여' ? styles.radioSelected : styles.radio}>여</Text></TouchableOpacity>
       </View>
 
+      {/* 학과 */}
       <View style={styles.rowBetween}>
         <Text style={styles.sectionTitle}>학과</Text>
         <View style={styles.switchRow}>
@@ -177,12 +188,20 @@ export default function SignUpScreen() {
           <Switch value={majorPublic} onValueChange={setMajorPublic} />
         </View>
       </View>
-      {majors.map(item => (
-        <TouchableOpacity key={item} onPress={() => setSelectedMajor(item)} style={styles.option}>
-          <Text style={selectedMajor === item ? styles.optionSelected : styles.optionText}>{item}</Text>
-        </TouchableOpacity>
-      ))}
+      <DropDownPicker
+        open={openMajor}
+        value={major}
+        items={majorItems}
+        setOpen={setOpenMajor}
+        setValue={setMajor}
+        setItems={setMajorItems}
+        placeholder="학과 선택"
+        listMode="SCROLLVIEW"
+        style={styles.dropdown}
+        dropDownContainerStyle={{ borderColor: '#ccc' }}
+      />
 
+      {/* 학년 */}
       <View style={styles.rowBetween}>
         <Text style={styles.sectionTitle}>학년</Text>
         <View style={styles.switchRow}>
@@ -198,11 +217,13 @@ export default function SignUpScreen() {
         ))}
       </View>
 
+      {/* 휴학 여부 */}
       <View style={styles.rowBetween}>
         <Text style={styles.sectionTitle}>휴학 여부</Text>
         <Switch value={isLeave} onValueChange={setIsLeave} />
       </View>
 
+      {/* 회원가입 버튼 */}
       <TouchableOpacity style={styles.button} onPress={handleSignUp}>
         <Text style={styles.buttonText}>회원가입</Text>
       </TouchableOpacity>
@@ -210,23 +231,22 @@ export default function SignUpScreen() {
   );
 }
 
-// 스타일
+// 스타일 정의
 const styles = StyleSheet.create({
   container: { padding: 20, backgroundColor: '#fff' },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', marginTop: 15 },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, marginTop: 8 },
   inputHalf: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, marginTop: 8, flex: 1 },
-  button: { backgroundColor: '#1e3a8a', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 30 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  subButtonSmall: { backgroundColor: '#aaa', padding: 8, borderRadius: 6, alignItems: 'center', marginLeft: 8, marginTop: 8 },
-  subButtonText: { color: '#fff', fontWeight: 'bold' },
+  button: { backgroundColor: '#001f3f', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 30 },
+  buttonText: { color: '#fff', fontSize: 16},
+  subButtonSmall: { backgroundColor: '#001f3f', padding: 8, borderRadius: 6, alignItems: 'center', marginLeft: 8, marginTop: 8 },
+  subButtonText: { color: '#fff'},
   row: { flexDirection: 'row', alignItems: 'center' },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
-  radioRow: { flexDirection: 'row', justifyContent: 'space-around', marginVertical: 10 },
-  radio: { fontSize: 16, padding: 10, borderWidth: 1, borderColor: '#aaa', borderRadius: 8, marginHorizontal: 5 },
-  radioSelected: { fontSize: 16, padding: 10, borderWidth: 1, borderColor: '#1e3a8a', backgroundColor: '#1e3a8a', color: '#fff', borderRadius: 8, marginHorizontal: 5 },
-  option: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#ccc' },
-  optionText: { fontSize: 15 },
-  optionSelected: { fontSize: 15, fontWeight: 'bold', color: '#1e3a8a' },
-  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 5 }
+  radioRow: {flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', marginVertical: 10, gap: 10},
+  radio: {fontSize: 16, paddingVertical: 12, paddingHorizontal: 20, borderWidth: 1, borderColor: '#aaa', borderRadius: 12, marginHorizontal: 4, textAlign: 'center'},
+  radioSelected: {fontSize: 16, paddingVertical: 12, paddingHorizontal: 20, borderWidth: 1, borderColor: '#001f3f', backgroundColor: '#001f3f', color: '#fff', 
+    borderRadius: 12, marginHorizontal: 4, textAlign: 'center'},
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  dropdown: { borderColor: '#ccc', borderRadius: 8, marginTop: 8 },
 });
