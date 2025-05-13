@@ -7,7 +7,7 @@ const {
   resetPassword,
   requestEmailVerification,
   verifyEmailCode,
-  checkEmail,  // 이메일 중복 확인 라우터 추가
+  checkEmail,
   checkUsername,
   registerUser,
   verifyResetCode
@@ -26,7 +26,7 @@ router.post('/request-email-verification', requestEmailVerification);
 router.post('/verify-email-code', verifyEmailCode);
 
 // 이메일 중복 확인
-router.post('/check-email', checkEmail);  // 이메일 중복 확인 라우터 추가
+router.post('/check-email', checkEmail);
 
 // 닉네임 중복 확인
 router.post('/check-username', checkUsername);
