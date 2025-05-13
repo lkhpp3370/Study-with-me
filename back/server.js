@@ -29,7 +29,7 @@ app.use('/studies', studyRoutes);                    // /study 경로로 요청 
 
 // ✅ 환경 변수 및 기본 설정
 const PORT = process.env.PORT || 3000;               // 환경변수 PORT 또는 기본값 3000
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://192.168.XX.XXX:27017/studywithme'; // MongoDB 연결 URI
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://192.168.45.173:27017/studywithme'; // MongoDB 연결 URI
 
 // ✅ MongoDB 연결
 mongoose.connect(MONGO_URI)
