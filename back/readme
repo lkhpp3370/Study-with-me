@@ -2,9 +2,6 @@
 PORT=3000
 MONGO_URI=mongodb://192.168.XX.XXX:27017/studywithme
 
-EMAIL_USER=lkhpp3370@gmail.com
-EMAIL_PASS=앱 비밀번호 16자리
-
 .gitignore
 아직 내용없음
 

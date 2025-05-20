@@ -1,19 +1,12 @@
-// backend/models/User.js
 const mongoose = require('mongoose');
 
 const UserSchema = new mongoose.Schema({
-  username: { type: String, required: true }, // 추가: 필수로 입력받기
-  email: { 
-    type: String, 
-    required: true, 
-    unique: true,  // ✅ 고유 제약 조건 추가
-    lowercase: true, // 이메일을 소문자로 자동 변환
-    trim: true // 공백 제거
-  },
-  password: { type: String, required: true }, // 추가: 필수로 입력받기
-  grade: { type: Number, required: true }, // 추가: 필수로 입력받기
-  major: { type: String, required: true }, // 추가: 필수로 입력받기
-  gender: { type: String, required: true }, // 추가: 필수로 입력받기
+  username: { type: String, required: true },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  password: { type: String, required: true },
+  grade: { type: Number, required: true },
+  major: { type: String, required: true },
+  gender: { type: String, required: true },
   profile_image: String,
   bio: String,
   isLeave: Boolean,
@@ -28,13 +21,21 @@ const UserSchema = new mongoose.Schema({
   }],
   notifications: {
     push: { type: Boolean, default: true },
-    comment: { type: Boolean, default: true },
+    chat: { type: Boolean, default: true },
     apply: { type: Boolean, default: true },
+    approve: { type: Boolean, default: true },
     schedule: { type: Boolean, default: true },
-    notice: { type: Boolean, default: true }
+    reminder: { type: Boolean, default: true },
+    notice: { type: Boolean, default: true },
+    commentApply: { type: Boolean, default: true },
+    commentPost: { type: Boolean, default: true }
+  },
+  chatNotificationPreferences: {
+    type: Map,
+    of: Boolean,
+    default: {}
   },
   resetCode: String
 });
 
-// 모델을 exports로 내보냄
 module.exports = mongoose.model('User', UserSchema);
