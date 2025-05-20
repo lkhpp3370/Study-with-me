@@ -1,4 +1,3 @@
-// screens/SettingScreen.js
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -8,7 +7,15 @@ import axios from 'axios';
 export default function SettingScreen() {
   const navigation = useNavigation();
   const [notifications, setNotifications] = useState({
-    push: true, comment: true, apply: true, schedule: true, notice: true
+    push: true,
+    chat: true,
+    apply: true,
+    approve: true,
+    schedule: true,
+    reminder: true,
+    commentApply: true,
+    commentPost: true,
+    notice: true
   });
   const [savedNotifications, setSavedNotifications] = useState(null);
 
@@ -61,6 +68,17 @@ export default function SettingScreen() {
     ]);
   };
 
+  const renderSwitch = (key, label) => (
+    <View style={styles.row} key={key}>
+      <Text style={styles.label}>{label}</Text>
+      <Switch
+        value={notifications[key]}
+        onValueChange={() => toggleSwitch(key)}
+        disabled={!notifications.push}
+      />
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <View style={styles.card}>
@@ -72,42 +90,29 @@ export default function SettingScreen() {
             value={notifications.push}
             onValueChange={(value) => {
               if (!value) {
-                setNotifications({
-                  push: false,
-                  comment: false,
-                  apply: false,
-                  schedule: false,
-                  notice: false
+                const allOff = {};
+                Object.keys(notifications).forEach(key => {
+                  allOff[key] = false;
                 });
+                setNotifications(allOff);
               } else {
                 setNotifications(prev => ({
-                  push: true,
-                  comment: savedNotifications?.comment ?? true,
-                  apply: savedNotifications?.apply ?? true,
-                  schedule: savedNotifications?.schedule ?? true,
-                  notice: savedNotifications?.notice ?? true
+                  ...savedNotifications,
+                  push: true
                 }));
               }
             }}
           />
         </View>
 
-        <View style={styles.row}>
-          <Text style={styles.label}>채팅 알림</Text>
-          <Switch value={notifications.comment} onValueChange={() => toggleSwitch('comment')} />
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>스터디 가입 신청/승인 알림</Text>
-          <Switch value={notifications.apply} onValueChange={() => toggleSwitch('apply')} />
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>스터디 일정 등록 알림</Text>
-          <Switch value={notifications.schedule} onValueChange={() => toggleSwitch('schedule')} />
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>스터디 일정 D-1 알림</Text>
-          <Switch value={notifications.notice} onValueChange={() => toggleSwitch('notice')} />
-        </View>
+        {renderSwitch('chat', '채팅 알림')}
+        {renderSwitch('apply', '스터디 가입 신청 알림')}
+        {renderSwitch('approve', '승인/거절 알림')}
+        {renderSwitch('schedule', '일정 등록 알림')}
+        {renderSwitch('reminder', '일정 D-1 리마인드 알림')}
+        {renderSwitch('commentApply', '가입신청 댓글 알림')}
+        {renderSwitch('commentPost', '게시글 댓글 알림')}
+        {renderSwitch('notice', '공지사항 알림')}
       </View>
 
       <TouchableOpacity style={styles.deleteBox} onPress={handleDeleteAccount}>
@@ -125,10 +130,28 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
   card: { backgroundColor: '#F7F7F7', padding: 20, borderRadius: 10, marginBottom: 20 },
   title: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#ccc' },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#ccc'
+  },
   label: { fontSize: 15 },
-  deleteBox: { backgroundColor: '#eee', padding: 15, borderRadius: 8, alignItems: 'flex-start' },
+  deleteBox: {
+    backgroundColor: '#eee',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'flex-start'
+  },
   deleteText: { color: '#333', fontSize: 15 },
-  saveButton: { backgroundColor: '#001f3f', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 20 },
-  saveButtonText: { color: '#fff', fontSize: 16}
+  saveButton: {
+    backgroundColor: '#001f3f',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 20
+  },
+  saveButtonText: { color: '#fff', fontSize: 16 }
 });

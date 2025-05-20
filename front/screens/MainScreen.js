@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, BackHandler } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect } from '@react-navigation/native'; // ✅ useFocusEffect 추가
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
 
@@ -21,23 +21,23 @@ export default function MainScreen() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [studyGroups, setStudyGroups] = useState([]);
   const [userName, setUserName] = useState('');
+  const [schedules, setSchedules] = useState({});
+  const [groupedSchedules, setGroupedSchedules] = useState({});
+  const [selectedSchedules, setSelectedSchedules] = useState([]);
   const navigation = useNavigation();
 
-  // ✅ 뒤로가기 버튼 핸들링 (앱 종료 Alert) - useFocusEffect를 사용하여 MainScreen에만 적용
   useFocusEffect(
-  React.useCallback(() => {
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      Alert.alert("앱 종료", "앱을 종료하시겠습니까?", [
-        { text: "취소", onPress: () => null, style: "cancel" },
-        { text: "종료", onPress: () => BackHandler.exitApp() }
-      ]);
-      return true;
-    });
-
-    // ✅ 최신 방식 : backHandler.remove()
-    return () => backHandler.remove();
-  }, [])
-);
+    React.useCallback(() => {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        Alert.alert("앱 종료", "앱을 종료하시겠습니까?", [
+          { text: "취소", onPress: () => null, style: "cancel" },
+          { text: "종료", onPress: () => BackHandler.exitApp() }
+        ]);
+        return true;
+      });
+      return () => backHandler.remove();
+    }, [])
+  );
 
   useEffect(() => {
     const loadData = async () => {
@@ -49,22 +49,39 @@ export default function MainScreen() {
         if (userId) {
           const response = await api.get(`/main/${userId}`);
           setStudyGroups(response.data.studies);
+
+          const scheduleRes = await api.get(`/schedule/user/${userId}`);
+          const marked = {};
+          const grouped = {};
+
+          scheduleRes.data.forEach(sch => {
+            const date = sch.start.split('T')[0];
+            if (!marked[date]) marked[date] = { marked: true, dots: [{ color: 'blue' }] };
+            if (!grouped[date]) grouped[date] = [];
+            grouped[date].push(sch);
+          });
+
+          setSchedules(marked);
+          setGroupedSchedules(grouped);
+          setSelectedSchedules(grouped[today] || []);
         }
       } catch (error) {
-        console.error('스터디 목록을 불러오는 데 실패했습니다.', error.message);
+        console.error('데이터 불러오기 실패:', error.message);
       }
     };
     loadData();
   }, []);
 
-  const handleDayPress = (day) => setSelectedDate(day.dateString);
+  const handleDayPress = (day) => {
+    const dateStr = day.dateString;
+    setSelectedDate(dateStr);
+    setSelectedSchedules(groupedSchedules[dateStr] || []);
+  };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Ionicons name="notifications" size={20} color="white" 
-          onPress={() => navigation.navigate('알림내역')} // ✅ 알림 페이지로 이동 추가
-        />
+        <Ionicons name="notifications" size={20} color="white" onPress={() => navigation.navigate('알림내역')} />
         <TouchableOpacity onPress={() => navigation.navigate('내 프로필')}>
           <Text style={styles.username}>{userName || 'user_name'}</Text>
         </TouchableOpacity>
@@ -72,15 +89,35 @@ export default function MainScreen() {
 
       <Calendar
         onDayPress={handleDayPress}
-        markedDates={{ [selectedDate]: { selected: true, selectedColor: '#00adf5' } }}
+        markedDates={{
+          ...schedules,
+          [selectedDate]: { ...(schedules[selectedDate] || {}), selected: true, selectedColor: '#00adf5' }
+        }}
         style={styles.calendar}
         theme={{ selectedDayBackgroundColor: '#00adf5', todayTextColor: '#00adf5' }}
         monthFormat={'yyyy년 M월'}
       />
 
       <View style={styles.scheduleBox}>
-        <Ionicons name="calendar-outline" size={30} color="#777" />
-        <Text style={styles.scheduleText}>일정이 없습니다</Text>
+        {selectedSchedules.length === 0 ? (
+          <>
+            <Ionicons name="calendar-outline" size={30} color="#777" />
+            <Text style={styles.scheduleText}>일정이 없습니다</Text>
+          </>
+        ) : (
+          selectedSchedules.map((sch, index) => {
+            const startTime = new Date(sch.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const endTime = new Date(sch.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            return (
+              <View key={index} style={styles.scheduleCard}>
+                <Text style={styles.scheduleTitle}>{sch.study?.title || '스터디명 없음'}</Text>
+                <Text style={styles.scheduleText}>
+                  {`${startTime} ~ ${endTime} - ${sch.title} (${sch.location || '장소 미정'})`}
+                </Text>
+              </View>
+            );
+          })
+        )}
       </View>
 
       <Text style={styles.sectionTitle}>내 스터디 그룹 목록</Text>
@@ -90,7 +127,7 @@ export default function MainScreen() {
         ) : (
           studyGroups.map((study) => (
             <TouchableOpacity key={study._id} style={styles.studyItem}
-              onPress={() => navigation.navigate('스터디상세', { study })} // ✅ 스터디상세 페이지로 이동 추가
+              onPress={() => navigation.navigate('스터디상세', { study })}
             >
               <Text style={styles.studyTitle}>{study.title}</Text>
               <Text style={styles.studyDesc}>{study.description}</Text>
@@ -99,7 +136,6 @@ export default function MainScreen() {
         )}
       </ScrollView>
 
-      {/* ✅ 채팅 플로팅 버튼 → 하단 고정 */}
       <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate('채팅')}>
         <Ionicons name="chatbubbles-outline" size={28} color="white" />
       </TouchableOpacity>
@@ -113,11 +149,13 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
   username: { color: 'white', fontSize: 16 },
   calendar: { marginTop: 10, borderRadius: 10, marginHorizontal: 16 },
-  scheduleBox: { height: 80, backgroundColor: 'white', margin: 16,
-    borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  scheduleText: { marginTop: 5, color: '#777' },
+  scheduleBox: { minHeight: 80, backgroundColor: 'white', margin: 16,
+    borderRadius: 10, padding: 10, justifyContent: 'center', alignItems: 'center' },
+  scheduleCard: { paddingVertical: 6, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: '#ddd', width: '100%' },
+  scheduleTitle: { fontWeight: 'bold', fontSize: 13, color: '#333' },
+  scheduleText: { marginTop: 2, color: '#555', fontSize: 13 },
   sectionTitle: { marginLeft: 16, marginTop: 10, fontWeight: 'bold', fontSize: 16 },
-  studyList: { flex: 1, paddingHorizontal: 16},
+  studyList: { flex: 1, paddingHorizontal: 16 },
   studyItem: { backgroundColor: 'white', padding: 10, borderRadius: 8, marginBottom: 8 },
   studyTitle: { fontSize: 16, fontWeight: 'bold' },
   studyDesc: { fontSize: 13, color: '#555' },

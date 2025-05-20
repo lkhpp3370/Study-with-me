@@ -1,10 +1,11 @@
-// screens/LoginScreen.js
+//screens/LoginScreen.js
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, BackHandler } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons'; // 👁️ 아이콘 추가
+
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
