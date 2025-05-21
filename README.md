@@ -2,6 +2,7 @@ vs code
 eslint
 korean language
 prettier
+thunder client
 
 node.js (Lts)
 
