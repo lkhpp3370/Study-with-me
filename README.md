@@ -10,6 +10,9 @@ front
 npm install -g expo-cli
 npm install
 
+npm start (실행)
 
 back
 npm install
+
+node server.js(실행)
