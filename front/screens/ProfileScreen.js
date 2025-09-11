@@ -4,7 +4,7 @@ import { View, Text, Image, StyleSheet, TouchableOpacity, ActivityIndicator, Ale
 import { useNavigation, useIsFocused } from '@react-navigation/native'; // ✅ 추가
 import { Ionicons } from '@expo/vector-icons';
 import { Menu, Divider, Provider } from 'react-native-paper';
-import axios from 'axios';
+import api from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ProfileScreen = () => {
@@ -22,7 +22,7 @@ const ProfileScreen = () => {
       const userId = await AsyncStorage.getItem('userId');
       if (!userId) return;
 
-      const response = await axios.get(`http://192.168.45.173:3000/profile/${userId}`);
+      const response = await api.get(`/profile/${userId}`);
       setProfileData(response.data);
     } catch (error) {
       console.error('❌ 프로필 데이터 불러오기 실패:', error.message);

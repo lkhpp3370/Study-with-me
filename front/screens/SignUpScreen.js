@@ -1,9 +1,9 @@
 // screens/SignUpScreen.js
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Switch } from 'react-native';
-import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
 import DropDownPicker from 'react-native-dropdown-picker'; // DropDownPicker 추가
+import api from '../services/api';
 
 export default function SignUpScreen() {
   const navigation = useNavigation();
@@ -42,12 +42,12 @@ export default function SignUpScreen() {
         Alert.alert('오류', '부경대학교 이메일만 사용 가능합니다.');
         return;
       }
-      const res = await axios.post('http://192.168.45.173:3000/auth/check-email', { email });
+      const res = await api.post('/auth/check-email', { email });
       if (res.data.exists) {
         Alert.alert('중복 이메일', '이미 가입된 이메일입니다.');
         return;
       }
-      await axios.post('http://192.168.45.173:3000/auth/request-email-verification', { email });
+      await api.post('/auth/request-email-verification', { email });
       Alert.alert('성공', '학교 이메일로 인증 코드가 발송되었습니다.');
     } catch (error) {
       Alert.alert('오류', error.response?.data?.message || '서버 오류');
@@ -57,8 +57,8 @@ export default function SignUpScreen() {
   // 이메일 코드 확인
   const handleEmailCodeCheck = async () => {
     try {
-      const res = await axios.post(
-        'http://192.168.45.173:3000/auth/verify-email-code',
+      const res = await api.post(
+        '/auth/verify-email-code',
         { email, code: verificationCode },
         { headers: { 'Content-Type': 'application/json' } }
       );
@@ -80,7 +80,7 @@ export default function SignUpScreen() {
       return;
     }
     try {
-      await axios.post('http://192.168.45.173:3000/auth/check-username', { username });
+      await api.post('/auth/check-username', { username });
       Alert.alert('사용 가능', '사용 가능한 닉네임입니다.');
       setUsernameChecked(true);
     } catch (error) {
@@ -113,7 +113,7 @@ export default function SignUpScreen() {
     }
 
     try {
-      await axios.post('http://192.168.45.173:3000/auth/register', {
+      await api.post('/auth/register', {
         email,
         password,
         username,

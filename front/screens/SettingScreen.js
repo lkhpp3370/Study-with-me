@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import axios from 'axios';
+import api from '../services/api';
 
 export default function SettingScreen() {
   const navigation = useNavigation();
@@ -23,7 +23,7 @@ export default function SettingScreen() {
     const fetchSettings = async () => {
       try {
         const userId = await AsyncStorage.getItem('userId');
-        const response = await axios.get(`http://192.168.45.173:3000/profile/${userId}`);
+        const response = await api.get(`/profile/${userId}`);
         const data = response.data.notifications ?? notifications;
         setNotifications(data);
         setSavedNotifications(data);
@@ -41,7 +41,7 @@ export default function SettingScreen() {
   const handleSave = async () => {
     try {
       const userId = await AsyncStorage.getItem('userId');
-      await axios.patch(`http://192.168.45.173:3000/profile/${userId}/notifications`, { notifications });
+      await api.patch(`/profile/${userId}/notifications`, { notifications });
       setSavedNotifications({ ...notifications });
       Alert.alert('성공', '알림 설정이 저장되었습니다.');
       navigation.goBack();
@@ -57,7 +57,7 @@ export default function SettingScreen() {
         text: '탈퇴', style: 'destructive', onPress: async () => {
           try {
             const userId = await AsyncStorage.getItem('userId');
-            await axios.delete(`http://192.168.45.173:3000/profile/${userId}`);
+            await api.delete(`/profile/${userId}`);
             await AsyncStorage.clear();
             navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
           } catch (error) {

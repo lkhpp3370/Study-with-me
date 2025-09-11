@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Switch, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
+import api from '../services/api';
 import DropDownPicker from 'react-native-dropdown-picker';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -30,7 +30,7 @@ export default function SetProfile() {
     const fetchProfile = async () => {
       try {
         const userId = await AsyncStorage.getItem('userId');
-        const response = await axios.get(`http://192.168.45.173:3000/profile/${userId}`);
+        const response = await api.get(`/profile/${userId}`);
         const data = response.data;
         setUsername(data.username);
         setMajor(data.major ?? '');
@@ -55,7 +55,7 @@ export default function SetProfile() {
       return;
     }
     try {
-      await axios.post('http://192.168.45.173:3000/auth/check-username', { username });
+      await api.post('/auth/check-username', { username });
       Alert.alert('사용 가능', '사용 가능한 닉네임입니다.');
       setUsernameChecked(true);
     } catch (error) {
@@ -84,7 +84,7 @@ export default function SetProfile() {
   const handleSave = async () => {
     try {
       const userId = await AsyncStorage.getItem('userId');
-      await axios.put(`http://192.168.45.173:3000/profile/${userId}`, {
+      await api.put(`/profile/${userId}`, {
         username,
         major,
         grade: Number(grade),

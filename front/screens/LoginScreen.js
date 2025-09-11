@@ -2,9 +2,9 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, BackHandler } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons'; // 👁️ 아이콘 추가
+import { Ionicons } from '@expo/vector-icons';
+import api from '../services/api';
 
 
 export default function LoginScreen() {
@@ -32,7 +32,7 @@ export default function LoginScreen() {
       return;
     }
     try {
-      const response = await axios.post('http://192.168.45.173:3000/auth/login', { email, password });
+      const response = await api.post('/auth/login', { email, password });
       await AsyncStorage.setItem('userId', response.data.userId);
       await AsyncStorage.setItem('userName', response.data.username);
       Alert.alert('로그인 성공', `${response.data.username}님 환영합니다.`);
