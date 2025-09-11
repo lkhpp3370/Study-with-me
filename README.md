@@ -16,3 +16,6 @@ back
 npm install
 
 node server.js(실행)
+
+
+services.msc
