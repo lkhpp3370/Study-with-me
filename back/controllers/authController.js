@@ -43,7 +43,7 @@ exports.requestResetCode = async (req, res) => {
     user.resetCode = code;
     await user.save();
 
-    await sendEmail(email, '[StudyWithMe] 비밀번호 재설정 코드', '비밀번호 재설정 코드: ${code}\n5분 내로 입력해 주세요.');
+    await sendEmail(email, '[StudyWithMe] 비밀번호 재설정 코드', `비밀번호 재설정 코드: ${code}\n5분 내로 입력해 주세요.`);
 
     res.json({ message: '비밀번호 재설정 이메일이 발송되었습니다.' });
   } catch (err) {
@@ -99,7 +99,8 @@ exports.requestEmailVerification = async (req, res) => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     emailVerificationCodes[email] = code;
 
-    await sendEmail(email, '[StudyWithMe] 이메일 인증 코드',' 인증 코드: ${code}\n5분 내로 입력해 주세요.');
+    await sendEmail(email, '[StudyWithMe] 이메일 인증 코드', `인증 코드: ${code}\n5분 내로 입력해 주세요.`);
+
 
     res.json({ message: '학교 이메일로 인증 코드가 발송되었습니다.' });
   } catch (err) {

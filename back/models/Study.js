@@ -1,19 +1,26 @@
-const mongoose = require('mongoose'); // mongoose 불러오기
+const mongoose = require('mongoose');
 
-// Study 스키마 정의
 const StudySchema = new mongoose.Schema({
-  title: String,                       // 스터디 이름
-  description: String,                 // 스터디 소개글
-  category: String,                    // 스터디 분야 (예: 자격증, 취업 등)
-  gender_rule: String,                 // 성별 제한 (예: 남, 여, 성별무관)
-  join_type: String,                   // 가입 방법 (자유가입, 승인가입)
-  duration: String,                    // 스터디 기간 (자유, 정규)
-  capacity: Number,                    // 최대 인원수
-  isRecruiting: Boolean,               // 모집 여부
-  createdAt: { type: Date, default: Date.now }, // 생성일
-  host: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // 방장
-  members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }] // 참여 멤버
+  title: { type: String, required: true },          // 스터디 이름
+  description: { type: String, required: true },    // 소개글
+  category: { type: String, required: true },       // 메인 카테고리 (취업, 자격증, 대회, 영어, 출석)
+  subCategory: { type: String },                    // 서브 카테고리 (IT, 디자인, 한국사, 토익 등)
+  gender_rule: { type: String, default: '무관' },   // 성별 제한
+  duration: { type: String, default: '자유' },      // 자유 / 정규
+  days: [String],                                   // 정규 스터디 요일 (자유면 빈 배열)
+  capacity: { type: Number, default: 0 },           // 최대 인원 (0 = 무제한)
+  isRecruiting: { type: Boolean, default: true },   // 모집 여부 (자동/수동)
+  createdAt: { type: Date, default: Date.now },
+  host: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 });
 
-// 모델 생성 및 export
+// ✅ 모집 상태 자동 업데이트 훅
+StudySchema.pre('save', function (next) {
+  if (this.capacity > 0 && this.members.length >= this.capacity) {
+    this.isRecruiting = false; // 정원 도달 → 모집 종료
+  }
+  next();
+});
+
 module.exports = mongoose.model('Study', StudySchema);

@@ -11,23 +11,40 @@ const ScheduleSchema = new mongoose.Schema({
     required: true,
   },
   description: String,
-  start: {
-    type: Date,
-    required: true,
-  },
-  end: {
-    type: Date,
-    required: true,
-  },
-  location: {                  // ✅ 추가된 모임 장소 필드
+
+  // ✅ Routine과 동일한 구조
+  dayOfWeek: { type: Number, required: true },   // 0=일 ~ 6=토
+  startDate: { type: Date, required: true },     // 시작 기준일
+  startTime: { type: String, required: true },   // "HH:mm"
+  endTime:   { type: String, required: true },   // "HH:mm"
+  repeatWeekly: { type: Boolean, default: false },
+
+  location: {
     type: String,
-    default: '장소 미정'
+    default: '장소 미정',
   },
+
+  // 📌 일정 개최자 (스터디장/생성자)
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true,
   },
+
+  // 📌 일정 참여자 목록
+  participants: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    }
+  ],
+
+  // 📌 참여 인원 제한 (0이면 무제한)
+  capacity: {
+    type: Number,
+    default: 0,
+  },
+
   createdAt: {
     type: Date,
     default: Date.now,
