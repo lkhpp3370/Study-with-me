@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useNavigation, useIsFocused, useRoute } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // ✅ 추가
 import api from '../services/api';
 
 const SearchScreen = () => {
@@ -10,30 +11,44 @@ const SearchScreen = () => {
 
   const [filteredStudies, setFilteredStudies] = useState([]);
   const [categorySelected, setCategorySelected] = useState(false);
+  const [userId, setUserId] = useState(null); // ✅ 로그인 유저 ID 저장
 
+  // ✅ 로그인 유저 ID 가져오기
   useEffect(() => {
-  const fetchStudies = async () => {
-    if (isFocused && route.params) {
-      const { duration, gender_rule, category, subCategory } = route.params;
+    const loadUser = async () => {
       try {
-        const query = new URLSearchParams({
-          ...(duration && { duration }),
-          ...(gender_rule && { gender_rule }),
-          ...(category && { category }),
-          ...(subCategory && { subCategory }),
-        }).toString();
-
-        const res = await api.get(`/studies/search?${query}`);
-        setFilteredStudies(res.data);
-        setCategorySelected(true);
+        const id = await AsyncStorage.getItem('userId'); // 👈 여기
+        if (id) setUserId(id);
       } catch (err) {
-        console.error('❌ 검색 실패:', err.message);
+        console.error('❌ 사용자 ID 로드 실패:', err.message);
       }
-    }
-  };
-  fetchStudies();
-}, [route.params, isFocused]);
+    };
+    loadUser();
+  }, []);
 
+  // ✅ 스터디 검색
+  useEffect(() => {
+    const fetchStudies = async () => {
+      if (isFocused && route.params) {
+        const { duration, gender_rule, category, subCategory } = route.params;
+        try {
+          const query = new URLSearchParams({
+            ...(duration && { duration }),
+            ...(gender_rule && { gender_rule }),
+            ...(category && { category }),
+            ...(subCategory && { subCategory }),
+          }).toString();
+
+          const res = await api.get(`/studies/search?${query}`);
+          setFilteredStudies(res.data);
+          setCategorySelected(true);
+        } catch (err) {
+          console.error('❌ 검색 실패:', err.message);
+        }
+      }
+    };
+    fetchStudies();
+  }, [route.params, isFocused]);
 
   return (
     <View style={styles.container}>
@@ -55,7 +70,8 @@ const SearchScreen = () => {
             <TouchableOpacity
               key={study._id}
               style={styles.studyCard}
-              onPress={() => navigation.navigate('스터디소개', { study })}
+              // ✅ userId 함께 전달
+              onPress={() => navigation.navigate('스터디소개', { study, userId })}
             >
               <Text style={styles.studyTitle}>{study.title}</Text>
               <Text style={{ color: '#888' }}>

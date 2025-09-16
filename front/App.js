@@ -21,21 +21,20 @@ import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
 import CategorySelectScreen from './screens/CategorySelectScreen';
 import CreateStudyScreen from './screens/CreateStudyScreen';
 import StudyIntroScreen from './screens/StudyIntroScreen';
-
-// ✅ 출석 관련
+import ReviewScreen from './screens/ReviewScreen';
+import CommentScreen from './screens/CommentScreen';
 import AttendanceScreen from './screens/AttendanceScreen';
 import MonthlyRankingScreen from './screens/MonthlyRankingScreen';
 import UserAttendanceScreen from './screens/UserAttendanceScreen';
 import StudyAttendanceScreen from './screens/StudyAttendanceScreen';
 import AttendanceCheckScreen from './screens/AttendanceCheckScreen';
 import AttendanceDetailScreen from './screens/AttendanceDetailScreen';
-
-// ✅ 김현서 프로젝트에서 가져온 화면
 import Studyroommain from './screens/Studyroommain';
 import Board from './screens/Board';
 import BoardWrite from './screens/BoardWrite';
 import FileShare from './screens/fileshare';
 import ScheduleAdd from './screens/ScheduleAdd';
+import ApplicationManageScreen from './screens/ApplicationManageScreen';
 
 // ✅ 검색 결과 화면 (샘플)
 function SearchResultsScreen({ route }) {
@@ -109,6 +108,9 @@ export default function App() {
         <Stack.Screen name="카테고리검색" component={SearchCategories} options={{ headerShown: true, title: '카테고리 검색' }} />
         <Stack.Screen name="SearchResults" component={SearchResultsScreen} options={{ headerShown: true, title: '검색 결과' }} />
         <Stack.Screen name="스터디소개" component={StudyIntroScreen} options={{ headerShown: true, title: '스터디 소개' }} />
+        <Stack.Screen name="ReviewScreen" component={ReviewScreen} options={{ headerShown: true, title: '리뷰' }} />
+        <Stack.Screen name="CommentScreen" component={CommentScreen} options={{ headerShown: true, title: '댓글' }} />
+        <Stack.Screen name="ApplicationManageScreen" component={ApplicationManageScreen} options={{ headerShown: true, title: '가입 신청 관리' }} />
 
         {/* 출석 */}
         <Stack.Screen name="MonthlyRanking" component={MonthlyRankingScreen} options={{ headerShown: true, title: '월간 랭킹' }} />
