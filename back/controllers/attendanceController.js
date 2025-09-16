@@ -317,43 +317,82 @@ exports.getStudyGlobalRank = async (req, res) => {
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     const end   = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
+    // 🔹 모든 스터디 가져오기 (출석 없는 스터디도 포함하기 위해)
+    const allStudies = await Study.find().select('_id title');
+
+    // 🔹 이번 달 출석 기록 조회
     const records = await Attendance.find({
       scheduleDate: { $gte: start, $lt: end }
     }).populate('study', 'title');
 
+    // 🔹 출석률 집계
     const byStudy = {};
+    for (const s of allStudies) {
+      byStudy[String(s._id)] = { 
+        studyId: String(s._id), 
+        title: s.title, 
+        출석: 0, 
+        지각: 0, 
+        결석: 0 
+      };
+    }
+
     for (const r of records) {
       const sid = String(r.study?._id || r.study);
-      const title = r.study?.title || '알 수 없음';
-      if (!byStudy[sid]) byStudy[sid] = { studyId: sid, title, 출석: 0, 지각: 0, 결석: 0 };
+      if (!byStudy[sid]) continue;
       byStudy[sid][r.status]++;
     }
 
+    // 🔹 출석률 계산 (소수점 2자리)
     const ranking = Object.values(byStudy)
-      .map(s => ({
-        studyId: s.studyId,
-        title: s.title,
-        출석률: calcWeightedPercent(s)
-      }))
+      .map(s => {
+        const total = s.출석 + s.지각 + s.결석;
+        const percent = total
+          ? Math.round(((s.출석 + s.지각 * 0.5) / total) * 10000) / 100
+          : 0.00; // 기록 없으면 0
+        return {
+          studyId: s.studyId,
+          title: s.title,
+          출석률: percent
+        };
+      })
       .sort((a, b) => b.출석률 - a.출석률);
 
-    const index = ranking.findIndex(r => r.studyId === String(studyId));
-    if (index === -1) {
+    // 🔹 등수 매기기 (동률 처리)
+    let currentRank = 0;
+    let lastPercent = null;
+    let skipCount = 0;
+    ranking.forEach((item, idx) => {
+      if (lastPercent === null || item.출석률 < lastPercent) {
+        currentRank = idx + 1; // 다음 순위
+        currentRank += skipCount; // 동률 건너뛴 만큼 반영
+        skipCount = 0;
+      } else {
+        skipCount++; // 동률이면 순위 유지
+      }
+      item.rank = currentRank;
+      lastPercent = item.출석률;
+    });
+
+    // 🔹 요청한 스터디 찾기
+    const target = ranking.find(r => r.studyId === String(studyId));
+    if (!target) {
       return res.status(404).json({ message: '해당 스터디의 랭킹을 찾을 수 없습니다.' });
     }
 
     res.json({
-      rank: index + 1,
+      rank: target.rank,
       total: ranking.length,
       studyId,
-      title: ranking[index].title,
-      출석률: ranking[index].출석률
+      title: target.title,
+      출석률: target.출석률.toFixed(2) // 소수점 2자리로 응답
     });
   } catch (err) {
     console.error('❌ 스터디 글로벌 랭킹 실패:', err);
     res.status(500).json({ message: '스터디 글로벌 랭킹 실패', error: err.message });
   }
 };
+
 
 // 🔹 다른 컨트롤러에서도 쓸 수 있도록 export
 exports.isWithinCheckWindow = isWithinCheckWindow;

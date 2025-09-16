@@ -52,7 +52,7 @@ exports.listPending = async (req, res) => {
     }
 
     const rows = await StudyApplication.find({ study: studyId, status: 'pending' })
-      .populate('applicant', 'username email')
+      .populate('applicant', 'username grade major gender')
       .sort({ createdAt: -1 });
 
     res.json(rows);

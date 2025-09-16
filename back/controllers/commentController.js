@@ -1,5 +1,5 @@
 const Comment = require('../models/Comment');
-const Study   = require('../models/Study');
+const Study = require('../models/Study');
 
 // GET /comments/:studyId?viewerId=xxx
 // 비밀댓글은 작성자 또는 스터디장만 내용 노출. 그 외에는 마스킹 문구로 반환.
@@ -48,9 +48,9 @@ exports.createComment = async (req, res) => {
 
     const comment = await Comment.create({
       study: studyId,
-      user:  userId,
+      user: userId,
       content,
-      isSecret: !!isSecret
+      isSecret: !!isSecret,
     });
 
     const populated = await comment.populate('user', 'username');
@@ -61,21 +61,24 @@ exports.createComment = async (req, res) => {
   }
 };
 
-// DELETE /comments/:commentId  (작성자 또는 스터디장)
+// DELETE /comments/:commentId (작성자 또는 스터디장)
 exports.deleteComment = async (req, res) => {
   try {
     const { commentId } = req.params;
     const { userId } = req.body;
 
     const c = await Comment.findById(commentId).populate('study', 'host');
-    if (!c) return res.status(404).json({ message: '댓글이 없습니다.' });
+    if (!c) return res.status(404).json({ message: '댓글이 존재하지 않습니다.' });
 
     const isOwner = String(c.user) === String(userId);
-    const isHost  = String(c.study.host) === String(userId);
-    if (!isOwner && !isHost) return res.status(403).json({ message: '삭제 권한이 없습니다.' });
+    const isHost = String(c.study.host) === String(userId);
+
+    if (!isOwner && !isHost) {
+      return res.status(403).json({ message: '댓글은 작성자 또는 스터디장만 삭제할 수 있습니다.' });
+    }
 
     await c.deleteOne();
-    res.json({ message: '댓글 삭제 완료' });
+    res.json({ message: '댓글이 성공적으로 삭제되었습니다.' });
   } catch (err) {
     console.error('❌ 댓글 삭제 실패:', err);
     res.status(500).json({ message: '댓글 삭제 실패', error: err.message });
