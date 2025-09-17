@@ -7,5 +7,3 @@ EMAIL_PASS=16자리
 
 .gitignore
 아직 내용없음
-
-front 위치에서 npm install 명령어 입력시 node_modules 파일 설치됨
