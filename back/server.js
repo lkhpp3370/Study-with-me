@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
@@ -15,23 +16,26 @@ const User = require('./models/User');
 dotenv.config();
 const app = express();
 
-// ✅ CORS + 세션
+// ✅ CORS (credentials + origin은 호환 주의)
 app.use(cors({
-  origin: '*', // 필요 시 origin 배열로 변경 가능
-  credentials: true
+  origin: [
+    'http://localhost:19006', // Expo 웹
+    'http://192.168.45.173:19006' // 같은 네트워크의 Expo 앱
+  ],
+  credentials: true,
 }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ 세션 미들웨어
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://192.168.45.173:27017/studywithme';
+// ✅ 세션 미들웨어 (선택사항: JWT로 대체 가능)
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/studywithme';
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
   saveUninitialized: false,
   store: MongoStore.create({ mongoUrl: MONGO_URI }),
-  cookie: { maxAge: 1000 * 60 * 60 * 24 } // 1일
+  cookie: { maxAge: 1000 * 60 * 60 * 24 }, // 1일
 }));
 
 // 기본 라우트
@@ -48,14 +52,14 @@ app.use('/chat', require('./routes/chat'));
 app.use('/chatroom', require('./routes/chatroom'));
 app.use('/routine', require('./routes/routine'));
 app.use('/attendance', require('./routes/attendance'));
-app.use('/reviews', require('./routes/review'));
+app.use('/reviews', require('./routes/review'));       // 일반 리뷰
 app.use('/comments', require('./routes/comment'));
 app.use('/applications', require('./routes/application'));
 
-// ✅ 장소 추천 관련 라우트 추가
+// ✅ 장소 추천 관련 라우트
 app.use('/places', require('./routes/place'));
-app.use('/reviews/place', require('./routes/placeReview')); // 장소 리뷰
-app.use('/favorites', require('./routes/favorite'));        // 즐겨찾기
+app.use('/place-reviews', require('./routes/placeReview')); // ⚡ 경로 충돌 방지
+app.use('/favorites', require('./routes/favorite'));
 
 // ✅ 김현서 프로젝트에서 가져온 라우트
 app.use('/material', require('./routes/material'));
@@ -111,6 +115,7 @@ io.on('connection', (socket) => {
       }
     } catch (err) {
       console.error('❌ 메시지 저장 실패:', err.message);
+      socket.emit('error', { message: '메시지 저장 실패' }); // 클라이언트에도 에러 전달
     }
   });
 
@@ -127,6 +132,7 @@ io.on('connection', (socket) => {
       }
     } catch (err) {
       console.error('❌ 읽음 처리 실패:', err.message);
+      socket.emit('error', { message: '읽음 처리 실패' });
     }
   });
 
