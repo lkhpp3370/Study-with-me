@@ -40,6 +40,7 @@ import ScheduleAdd from './screens/ScheduleAdd';
 import ApplicationManageScreen from './screens/ApplicationManageScreen';
 import PlaceReviewScreen from './screens/PlaceReviewScreen';
 import PlaceEditRequestScreen from './screens/PlaceEditRequestScreen';
+import BoardDetail from './screens/BoardDetail';
 
 // ✅ 검색 결과 화면 (샘플)
 function SearchResultsScreen({ route }) {
@@ -111,6 +112,7 @@ export default function App() {
         <Stack.Screen name="스터디상세" component={Studyroommain} options={{ headerShown: false }} />
         <Stack.Screen name="카테고리선택" component={CategorySelectScreen} options={{ headerShown: true, title: '카테고리 선택' }} />
         <Stack.Screen name="스터디개설" component={CreateStudyScreen} options={{ headerShown: true, title: '스터디 개설' }} />
+        <Stack.Screen name="BoardDetail" component={BoardDetail} options={{ headerShown: true, title: '게시글 상세' }} />
         <Stack.Screen name="카테고리검색" component={SearchCategories} options={{ headerShown: true, title: '카테고리 검색' }} />
         <Stack.Screen name="SearchResults" component={SearchResultsScreen} options={{ headerShown: true, title: '검색 결과' }} />
         <Stack.Screen name="스터디소개" component={StudyIntroScreen} options={{ headerShown: true, title: '스터디 소개' }} />

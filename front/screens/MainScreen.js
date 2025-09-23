@@ -334,7 +334,7 @@ export default function MainScreen() {
                 <TouchableOpacity
                   key={i}
                   onPress={() => item.type === 'study'
-                    ? navigation.navigate('Studyroommain', { studyId: item.study, studyName: item.title })
+                    ? navigation.navigate('Studyroommain', { studyId: item.study._id, studyName: item.study.title })
                     : handleDeleteRoutine(item._id)}
                   style={[styles.cell, { width: dayWidth, backgroundColor, justifyContent: 'center', alignItems: 'center', paddingHorizontal:2 }]}
                 >

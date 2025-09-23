@@ -19,7 +19,8 @@ export default function ChatRoomScreen() {
   const { roomId, studyTitle, userId: routeUserId } = route.params;
   const [userId, setUserId] = useState(routeUserId);
   const [hostId, setHostId] = useState(null);
-
+  const { studyId, studyHostId } = route.params;
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [image, setImage] = useState(null);
@@ -90,7 +91,7 @@ export default function ChatRoomScreen() {
     }
   };
 
-  const isUserHost = userId && hostId && userId === hostId;
+  const isUserHost = studyHostId?.toString() === currentUserId;
 
   const sendMessage = async () => {
     if (!text.trim() && !image) return;

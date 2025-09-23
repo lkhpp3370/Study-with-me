@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Dimensions, View, Text, StyleSheet, TouchableOpacity, ScrollView, PanResponder, Animated, Image, Alert } from 'react-native';
+import { Dimensions, View, Text, StyleSheet, TouchableOpacity, ScrollView, PanResponder, Animated, Image, Alert, Modal } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../services/api';
+import StudyMenu from './StudyMenu'; // StudyMenu 컴포넌트 import
+import AsyncStorage from '@react-native-async-storage/async-storage'; 
 
 // 달력 한국어 설정
 LocaleConfig.locales['ko'] = {
@@ -21,17 +23,100 @@ const Studyroommain = ({ navigation, route }) => {
   const [files, setFiles] = useState([]);
   const [posts, setPosts] = useState([]);
   const [schedules, setSchedules] = useState([]);
+  const [studyInfo, setStudyInfo] = useState(null); // 스터디 정보 상태 추가
+  const [isMenuVisible, setIsMenuVisible] = useState(false); // 메뉴 가시성 상태 추가
+  const [isHost, setIsHost] = useState(false); // 사용자 역할 상태 추가
+  const [members, setMembers] = useState([]); // 멤버 목록 상태 추가
+
+  // ✅ 스터디 나가기 로직 추가
+  const handleLeaveStudy = async () => {
+    if (isHost) { // isHost는 state 또는 prop으로 관리되어야 합니다.
+        Alert.alert(
+            "경고",
+            "방장은 스터디를 나가기 전에 다른 스터디원에게 방장 권한을 위임해야 합니다.",
+            [{ text: "확인" }]
+        );
+        return;
+    }
+    try {
+      const currentUserId = await AsyncStorage.getItem('userId');
+      if (!currentUserId) {
+        Alert.alert('오류', '로그인 상태를 확인해주세요.');
+        return;
+      }
+      
+      // 백엔드 API 호출
+      await api.delete(`/studies/${studyId}/members/${currentUserId}`);
+
+      Alert.alert('알림', '성공적으로 스터디를 나갔습니다.', [
+        { text: '확인', onPress: () => navigation.goBack() } // 🚨 스터디룸 화면에서 벗어나기
+      ]);
+      
+    } catch (error) {
+      console.error('스터디 나가기 실패:', error);
+      Alert.alert('오류', '스터디를 나가는 도중 오류가 발생했습니다.');
+    }
+  };
+  const handleDelegateHost = async (newHostId, newHostName) => {
+    Alert.alert(
+        "스터디장 위임",
+        `정말로 ${newHostName}님에게 스터디장 권한을 위임하시겠습니까?`,
+        [
+            {
+                text: "취소",
+                style: "cancel"
+            },
+            {
+                text: "위임",
+                onPress: async () => {
+                    try {
+                        const currentUserId = await AsyncStorage.getItem('userId');
+                        const response = await api.patch(`/studies/${studyId}/delegate-host`, { 
+                            newHostId,
+                            currentUserId // 🚨 현재 사용자 ID를 body에 추가
+                        });
+                        if (response.status === 200) {
+                            Alert.alert('알림', `${newHostName}님에게 스터디장 권한이 위임되었습니다.`, [
+                                { text: '확인', onPress: () => navigation.goBack() }
+                            ]);
+                        }
+                    } catch (error) {
+                        console.error('스터디장 위임 실패:', error);
+                        Alert.alert('오류', '스터디장 위임에 실패했습니다.');
+                    }
+                }
+            }
+        ],
+        { cancelable: false }
+    );
+  };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const filesRes = await api.get('/material/files');
+        const filesRes = await api.get(`/studies/${studyId}/files`);
         setFiles(filesRes.data);
 
         if (studyId) {
           const scheduleRes = await api.get(`/schedule/study/${studyId}`);
           setSchedules(scheduleRes.data);
         }
+
+        const postsRes = await api.get(`/api/posts/study/${studyId}`);
+        setPosts(postsRes.data);
+        
+        // 스터디 정보 가져오기 (방장 여부 확인 및 멤버 데이터 전달을 위해)
+        const studyRes = await api.get(`/studies/${studyId}`);
+        setStudyInfo(studyRes.data);
+        
+        // 여기에 현재 로그인된 사용자의 ID를 설정해야 합니다.
+        const currentUserId = await AsyncStorage.getItem('userId'); 
+        if (currentUserId && studyRes.data.host && studyRes.data.host._id === currentUserId) {
+          setIsHost(true);
+        }
+
+        setMembers(studyRes.data.members);
+
       } catch (err) {
         console.error('데이터 불러오기 실패:', err);
         Alert.alert('오류', '데이터를 불러오는데 실패했습니다.');
@@ -67,12 +152,12 @@ const Studyroommain = ({ navigation, route }) => {
       <View style={styles.container}>
         {/* 헤더 */}
         <View style={styles.header}>
-          <Text style={styles.title}>study_name</Text>
+          <Text style={styles.title}>{studyName}</Text>
           <View style={styles.headerRight}>
             <TouchableOpacity onPress={() => navigation.navigate('ScheduleAdd')}>
               <Image source={require('../assets/calendaradd.png')} style={{ width: 30, height: 30 }} />
             </TouchableOpacity>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => setIsMenuVisible(true)}>
               <Ionicons name="menu-outline" size={24} color="white" style={{ marginLeft: 10 }} />
             </TouchableOpacity>
           </View>
@@ -90,7 +175,16 @@ const Studyroommain = ({ navigation, route }) => {
         {/* 자료 공유 */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>자료 공유</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('FileShare')}>
+          <TouchableOpacity onPress={() => {
+            if (studyInfo && studyInfo.host) {
+              navigation.navigate('FileShare', {
+                studyId: studyId,
+                studyHostId: studyInfo.host._id
+              });
+            } else {
+              Alert.alert('오류', '스터디 정보를 불러오고 있습니다. 잠시 후 다시 시도해주세요.');
+            }
+          }}>
             <Text style={styles.moreText}>+ MORE</Text>
           </TouchableOpacity>
         </View>
@@ -107,7 +201,7 @@ const Studyroommain = ({ navigation, route }) => {
         {/* 게시판 */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>게시판</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Board')}>
+          <TouchableOpacity onPress={() => navigation.navigate('Board', { studyId, studyName })}>
             <Text style={styles.moreText}>+ MORE</Text>
           </TouchableOpacity>
         </View>
@@ -147,6 +241,17 @@ const Studyroommain = ({ navigation, route }) => {
           <Ionicons name="chatbubble-ellipses-outline" size={28} color="white" />
         </Animated.View>
       </View>
+      
+      {/* 메뉴 컴포넌트 추가 */}
+      <StudyMenu
+        isVisible={isMenuVisible}
+        onClose={() => setIsMenuVisible(false)}
+        isHost={isHost}
+        members={members}
+        onLeaveStudy={handleLeaveStudy}
+        hostId={studyInfo?.host?._id}
+        onDelegateHost={handleDelegateHost}
+      />
     </ScrollView>
   );
 };
