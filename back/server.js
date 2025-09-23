@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
@@ -12,59 +11,57 @@ const MongoStore = require('connect-mongo');
 const Message = require('./models/Message');
 const ChatRoom = require('./models/ChatRoom');
 const User = require('./models/User');
-
+const fs = require('fs'); // fs 모듈 불러오기
+const path = require('path'); // path 모듈 불러오기
 dotenv.config();
 const app = express();
+const uploadDir = path.join(__dirname, 'uploads', 'materials');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log('✅ 업로드 디렉터리 생성 완료:', uploadDir);
+}
 
-// ✅ CORS (credentials + origin은 호환 주의)
+// ✅ CORS + 세션
 app.use(cors({
-  origin: [
-    'http://localhost:19006', // Expo 웹
-    'http://192.168.45.173:19006' // 같은 네트워크의 Expo 앱
-  ],
-  credentials: true,
+  origin: 'exp://192.168.127.9:8081',
+  credentials: true
 }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ 세션 미들웨어 (선택사항: JWT로 대체 가능)
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/studywithme';
+// ✅ 세션 미들웨어
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://192.168.127.9:27017/studywithme';
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
   saveUninitialized: false,
   store: MongoStore.create({ mongoUrl: MONGO_URI }),
-  cookie: { maxAge: 1000 * 60 * 60 * 24 }, // 1일
+  cookie: { maxAge: 1000 * 60 * 60 * 24 } // 1일
 }));
 
 // 기본 라우트
 app.get('/', (req, res) => res.send('Backend server is running!'));
 
-// 📌 기존 라우트
+// 📌 라우트 연결
 app.use('/profile', require('./routes/profile'));
 app.use('/main', require('./routes/main'));
 app.use('/auth', require('./routes/auth'));
-app.use('/studies', require('./routes/study'));
-app.use('/schedule', require('./routes/schedule'));
+app.use('/studies', require('./routes/study'));     // 스터디 생성/검색/조회
+app.use('/schedule', require('./routes/schedule')); // 일정
 app.use('/notification', require('./routes/notification'));
 app.use('/chat', require('./routes/chat'));
 app.use('/chatroom', require('./routes/chatroom'));
 app.use('/routine', require('./routes/routine'));
 app.use('/attendance', require('./routes/attendance'));
-app.use('/reviews', require('./routes/review'));       // 일반 리뷰
+app.use('/reviews', require('./routes/review'));
 app.use('/comments', require('./routes/comment'));
 app.use('/applications', require('./routes/application'));
 
-// ✅ 장소 추천 관련 라우트
-app.use('/places', require('./routes/place'));
-app.use('/place-reviews', require('./routes/placeReview')); // ⚡ 경로 충돌 방지
-app.use('/favorites', require('./routes/favorite'));
-
 // ✅ 김현서 프로젝트에서 가져온 라우트
-app.use('/material', require('./routes/material'));
+app.use(require('./routes/material'));
 app.use('/api/posts', require('./routes/postRoutes'));
-app.use('/folder', require('./routes/folder'));
+app.use(require('./routes/folder'));
 app.use('/uploads', express.static('uploads'));
 
 const PORT = process.env.PORT || 3000;
@@ -89,7 +86,7 @@ io.on('connection', (socket) => {
         content: message,
       });
 
-      // ✅ lastMessage 미리보기
+      // ✅ lastMessage 미리보기 (네 쪽 코드 유지)
       let preview = '';
       if (type === 'image') preview = '[이미지]';
       else if (type === 'vote') preview = '[투표]';
@@ -115,7 +112,6 @@ io.on('connection', (socket) => {
       }
     } catch (err) {
       console.error('❌ 메시지 저장 실패:', err.message);
-      socket.emit('error', { message: '메시지 저장 실패' }); // 클라이언트에도 에러 전달
     }
   });
 
@@ -132,7 +128,6 @@ io.on('connection', (socket) => {
       }
     } catch (err) {
       console.error('❌ 읽음 처리 실패:', err.message);
-      socket.emit('error', { message: '읽음 처리 실패' });
     }
   });
 
