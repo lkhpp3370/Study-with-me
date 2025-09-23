@@ -5,6 +5,9 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
+// ✅ 장소추천 화면 (카카오맵 WebView 버전)
+import MapScreen from './screens/MapScreen';
+
 // 기존 스크린
 import LoginScreen from './screens/LoginScreen';
 import MainScreen from './screens/MainScreen';
@@ -35,6 +38,8 @@ import BoardWrite from './screens/BoardWrite';
 import FileShare from './screens/fileshare';
 import ScheduleAdd from './screens/ScheduleAdd';
 import ApplicationManageScreen from './screens/ApplicationManageScreen';
+import PlaceReviewScreen from './screens/PlaceReviewScreen';
+import PlaceEditRequestScreen from './screens/PlaceEditRequestScreen';
 
 // ✅ 검색 결과 화면 (샘플)
 function SearchResultsScreen({ route }) {
@@ -49,14 +54,6 @@ function SearchResultsScreen({ route }) {
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
-
-function PlacesScreen() {
-  return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text>장소추천 화면(준비중)</Text>
-    </View>
-  );
-}
 
 function Tabs() {
   return (
@@ -76,7 +73,12 @@ function Tabs() {
       <Tab.Screen name="출석률" component={AttendanceScreen} options={{ headerShown: false }} />
       <Tab.Screen name="검색" component={SearchScreen} options={{ headerShown: false }} />
       <Tab.Screen name="홈" component={MainScreen} options={{ headerShown: false }} />
-      <Tab.Screen name="장소추천" component={PlacesScreen} options={{ headerShown: true, title: '장소추천' }} />
+      {/* ✅ 장소추천 → MapScreen 연결 */}
+      <Tab.Screen
+        name="장소추천"
+        component={MapScreen}
+        options={{ headerShown: false, title: '장소추천' }}
+      />
     </Tab.Navigator>
   );
 }
@@ -91,7 +93,11 @@ export default function App() {
 
         {/* 채팅 */}
         <Stack.Screen name="채팅목록" component={ChatScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="ChatRoomScreen" component={ChatRoomScreen} options={{ headerShown: true, title: '채팅방' }} />
+        <Stack.Screen
+          name="ChatRoomScreen"
+          component={ChatRoomScreen}
+          options={{ headerShown: true, title: '채팅방' }}
+        />
 
         {/* 회원/프로필 */}
         <Stack.Screen name="회원가입" component={SignUpScreen} options={{ headerShown: false }} />
@@ -119,12 +125,14 @@ export default function App() {
         <Stack.Screen name="AttendanceCheck" component={AttendanceCheckScreen} options={{ headerShown: true, title: '출석 체크' }} />
         <Stack.Screen name="AttendanceDetail" component={AttendanceDetailScreen} options={{ headerShown: true, title: '출석 상세' }} />
 
-        {/* ✅ 추가된 화면 */}
+        {/* 기타 */}
         <Stack.Screen name="Board" component={Board} options={{ headerShown: false }} />
         <Stack.Screen name="BoardWrite" component={BoardWrite} options={{ headerShown: false }} />
         <Stack.Screen name="FileShare" component={FileShare} options={{ headerShown: false }} />
         <Stack.Screen name="ScheduleAdd" component={ScheduleAdd} options={{ headerShown: false }} />
         <Stack.Screen name="Studyroommain" component={Studyroommain} options={{ headerShown: false }} />
+        <Stack.Screen name="PlaceReviewScreen" component={PlaceReviewScreen} options={{ headerShown: true, title: '리뷰' }} />
+        <Stack.Screen name="PlaceEditRequestScreen" component={PlaceEditRequestScreen} options={{ headerShown: true, title: '정보 수정' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
