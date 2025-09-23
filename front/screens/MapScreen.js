@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput,
-  Platform, Modal, Pressable, Alert, Linking, FlatList, Animated, PanResponder
+  Platform, Modal, Pressable, Alert, Linking, FlatList, Animated, PanResponder, Dimensions // ✅ 수정: Dimensions 추가
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Slider from '@react-native-community/slider';
@@ -16,8 +16,10 @@ const KAKAO_JS_KEY = '8735db830fce16c65a56a48c7907c10c';
 // 초기 중심: 부경대(대연캠퍼스 인근)
 const DEFAULT_CENTER = { latitude: 35.1335, longitude: 129.105 };
 
-// 리스트 바텀시트 스냅포인트(px 비율)
-const SNAP_POINTS = [0.0, 0.4, 0.7]; // 0% / 40% / 70%
+// ✅ 스냅포인트: 완전 내림(0) / 중간(0.5)
+const SNAP_POINTS = [0.0, 0.5]; // ✅ 수정: 2단계로 축소
+const MAX_SHEET_PCT = 0.85;     // 최대 높이 화면의 85%
+const WIN_H = Dimensions.get('window').height;
 
 export default function MapScreen({ route, navigation }) {
   const webRef = useRef(null);
@@ -34,7 +36,7 @@ export default function MapScreen({ route, navigation }) {
   const [typeStudy, setTypeStudy] = useState(true);
   const [typeLibrary, setTypeLibrary] = useState(true);
   const [typeOther, setTypeOther] = useState(true);
-  const [onlyFav, setOnlyFav] = useState(false);
+  const [onlyFav, setOnlyFav] = useState(false); // ✅ 즐겨찾기 모드 (맵 이동 없음)
 
   const [places, setPlaces] = useState([]);
   const [favorites, setFavorites] = useState(new Set());
@@ -44,16 +46,21 @@ export default function MapScreen({ route, navigation }) {
   const [showDetail, setShowDetail] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // 바텀시트(리스트) 드래그
-  const [sheetHeight] = useState(new Animated.Value(0)); // 0~1 (화면 높이 비율)
+  // 장소 리뷰 평균 캐시 (리스트에 표기)
+  const [ratingMap, setRatingMap] = useState({}); // {placeId: {avg, count}}
+
+  // ---------- 바텀시트(리스트) 드래그 ----------
+  // sheetHeight는 0..1 정규화 값. 실제 높이 = sheetHeight * (WIN_H * MAX_SHEET_PCT)
+  const [sheetHeight] = useState(new Animated.Value(0)); // 0~1
   const sheetRatioRef = useRef(SNAP_POINTS[1]); // 현재 스냅 비율 기억
+
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 5,
       onPanResponderMove: (_, g) => {
-        const screenH = globalThis?.window?.innerHeight || 800; // 웹뷰 외 영역에서도 안전하게
-        const delta = -g.dy / screenH; // 위로 올리면 +
-        let next = Math.max(0, Math.min(0.85, sheetRatioRef.current + delta));
+        // ✅ 수정: 정규화 기반으로 부드럽게
+        const delta = -g.dy / (WIN_H * MAX_SHEET_PCT); // 위로 올리면 +
+        let next = Math.max(0, Math.min(1, sheetRatioRef.current + delta));
         sheetHeight.setValue(next);
       },
       onPanResponderRelease: (_, g) => {
@@ -62,9 +69,6 @@ export default function MapScreen({ route, navigation }) {
       },
     })
   ).current;
-
-  // 장소 리뷰 평균 캐시 (리스트에 표기)
-  const [ratingMap, setRatingMap] = useState({}); // {placeId: {avg, count}}
 
   // ---------- 데이터 로드 ----------
   const fetchPlaces = async () => {
@@ -82,7 +86,7 @@ export default function MapScreen({ route, navigation }) {
 
   const fetchFavorites = async () => {
     try {
-      // 즐겨찾기 목록 조회 (선택사항: /favorites?userId= 으로 구현되어 있다고 가정)
+      // 즐겨찾기 목록 조회 (/favorites?userId=)
       const res = await axios.get(`${BACKEND_URL}/favorites`, { params: { userId } });
       const arr = Array.isArray(res.data) ? res.data : [];
       setFavorites(new Set(arr.map((it) => (it.place?._id || it.place))));
@@ -94,7 +98,7 @@ export default function MapScreen({ route, navigation }) {
   useEffect(() => {
     fetchPlaces();
     fetchFavorites();
-    // 바텀시트 기본 스냅: 중간(0.4)
+    // 바텀시트 기본 스냅: 중간(0.5)
     Animated.timing(sheetHeight, { toValue: SNAP_POINTS[1], duration: 0, useNativeDriver: false }).start();
     sheetRatioRef.current = SNAP_POINTS[1];
   }, []);
@@ -134,12 +138,12 @@ export default function MapScreen({ route, navigation }) {
     } catch {}
   };
 
-  // 즐겨찾기 토글 (맵 이동 금지: 상태만 변경)
+  // ✅ 즐겨찾기 토글 (리스트/상세에서 별을 누르면 바로 반영 + 맵 이동 없음)
   const toggleFav = async (placeId) => {
     try {
       if (!placeId) return;
-      // ✅ 백엔드: /favorites/toggle { userId, placeId }
-      const res = await axios.post(`${BACKEND_URL}/favorites/toggle`, { userId, placeId });
+      // 백엔드: /favorites/toggle { userId, placeId }
+      const res = await axios.post(`${BACKEND_URL}/favorites/toggle`, { userId, placeId }); // ✅ 수정
       const { isFavorite } = res.data || {};
       setFavorites(prev => {
         const next = new Set(prev);
@@ -171,14 +175,14 @@ export default function MapScreen({ route, navigation }) {
         Alert.alert('권한 필요', '위치 권한을 허용해주세요.');
         return;
       }
-      // 빠른 응답을 위해 우선 coarse → 실패 시 high
+      // 빠른 응답: lastKnown → 없으면 Balanced
       let loc;
       try {
         loc = await ExpoLocation.getLastKnownPositionAsync();
       } catch {}
       if (!loc) {
         loc = await ExpoLocation.getCurrentPositionAsync({
-          accuracy: ExpoLocation.Accuracy.Balanced, // High 대신 Balanced로 체감속도 향상
+          accuracy: ExpoLocation.Accuracy.Balanced,
           mayShowUserSettingsDialog: false,
         });
       }
@@ -268,13 +272,9 @@ export default function MapScreen({ route, navigation }) {
     }
   };
 
-  // 바텀시트 높이 → 실제 px 변환
-  const sheetStyle = {
-    maxHeight: sheetHeight.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, 1], // 비율 기반, 컨테이너에서 처리
-    }),
-  };
+  // 바텀시트 실제 높이 스타일 (정규화 * 최대 px)
+  const animatedSheetHeight = Animated.multiply(sheetHeight, WIN_H * MAX_SHEET_PCT); // ✅ 수정
+  const sheetAnimatedStyle = { height: animatedSheetHeight }; // ✅ 수정
 
   return (
     <View style={{ flex: 1 }}>
@@ -313,7 +313,7 @@ export default function MapScreen({ route, navigation }) {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.fab, onlyFav && { backgroundColor: '#1f6feb' }]}
-          onPress={() => setOnlyFav(v => !v)} // ✅ 맵 이동 없음
+          onPress={() => setOnlyFav(v => !v)} // ✅ 수정: 맵 이동 없음, 리스트만 필터링
         >
           <Ionicons name={onlyFav ? 'star' : 'star-outline'} size={18} color={onlyFav ? '#fff' : '#1f6feb'} />
         </TouchableOpacity>
@@ -322,13 +322,13 @@ export default function MapScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* 하단 드래그 리스트 (완전 내리기 가능) */}
+      {/* 하단 드래그 리스트 (완전 내리기 ↔ 중간) */}
       <Animated.View
-        style={[styles.listPanel, { height: `${sheetHeight.__getValue() * 100}%`, maxHeight: '85%' }]}
+        style={[styles.listPanel, sheetAnimatedStyle]} // ✅ 수정: Animated height 적용
         {...panResponder.panHandlers}
       >
         <TouchableOpacity style={styles.grabber} onPress={() => {
-          // 탭으로 스냅 이동
+          // 탭으로 스냅 이동 (0 ↔ 0.5)
           sheetRatioRef.current = nextSnap(sheetHeight);
         }}>
           <View style={styles.grabberBar} />
@@ -357,13 +357,13 @@ export default function MapScreen({ route, navigation }) {
           renderItem={({ item }) => {
             const tagType = toTypeLabelIcon(item.type);
             const r = ratingMap[item._id];
-            const ratingText = r ? `${r.avg?.toFixed(1)}점 (${r.count})` : '평점 계산 중…';
+            const ratingText = r ? `${(r.avg ?? 0).toFixed(1)}점 (${r.count ?? 0})` : '평점 계산 중…';
             return (
               <TouchableOpacity style={styles.listItem} onPress={() => focusOnPlace(item)}>
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={styles.listName}>{item.name}</Text>
-                    <View style={styles.typeTag}>
+                    <View style={styles.typeTag}> {/* ✅ 타입 태그 표시 */}
                       <Ionicons name={tagType.icon} size={12} color="#fff" />
                       <Text style={styles.typeTagText}>{tagType.label}</Text>
                     </View>
@@ -395,6 +395,7 @@ export default function MapScreen({ route, navigation }) {
                   </View>
                 </View>
 
+                {/* ✅ 리스트에서 바로 즐겨찾기 토글 */}
                 <TouchableOpacity onPress={() => toggleFav(item._id)}>
                   <Ionicons
                     name={favorites.has(item._id) ? 'star' : 'star-outline'}
@@ -450,6 +451,7 @@ export default function MapScreen({ route, navigation }) {
                 <Text style={styles.detailName}>{selected.name}</Text>
                 <Text style={styles.detailAddr} numberOfLines={1}>{selected.address}</Text>
               </View>
+              {/* ✅ 상세에서 바로 즐겨찾기 토글 */}
               <TouchableOpacity onPress={() => toggleFav(selected._id)}>
                 <Ionicons name={favorites.has(selected._id) ? 'star' : 'star-outline'} size={22} color="#f5a524" />
               </TouchableOpacity>
@@ -657,9 +659,8 @@ function Pill({ text }) {
   );
 }
 
-// 스냅 계산
+// ✅ 스냅 계산 (2단계: 0 ↔ 0.5)
 function snapTo(val, vy){
-  // 속도 기반으로 다음 스냅
   const current = val.__getValue();
   const points = SNAP_POINTS;
   // 후보 스냅 선택
@@ -700,8 +701,10 @@ const styles = StyleSheet.create({
   fab: { width:44, height:44, borderRadius:12, backgroundColor:'#fff', justifyContent:'center', alignItems:'center',
     shadowColor:'#000', shadowOpacity:0.12, shadowRadius:6, shadowOffset:{width:0,height:2}, elevation:2 },
 
+  // ✅ 리스트 패널은 Animated height를 사용
   listPanel: { position:'absolute', left:0, right:0, bottom:0, backgroundColor:'#fff',
-    borderTopLeftRadius:16, borderTopRightRadius:16, paddingTop:6, paddingHorizontal:8, zIndex: 5, overflow: 'hidden' },
+    borderTopLeftRadius:16, borderTopRightRadius:16, paddingTop:6, paddingHorizontal:8, zIndex: 5, overflow: 'hidden', maxHeight: WIN_H * MAX_SHEET_PCT },
+
   grabber: { alignItems:'center', paddingVertical:6 },
   grabberBar: { width:40, height:4, borderRadius:2, backgroundColor:'#d1d5db' },
   listHeaderRow: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:6, paddingBottom:6 },
@@ -711,6 +714,11 @@ const styles = StyleSheet.create({
     borderBottomWidth:1, borderBottomColor:'#eee', paddingVertical:10, gap:8 },
   listName: { fontWeight:'bold', fontSize:14 },
   listAddr: { fontSize:12, color:'#555', marginTop:2, maxWidth:'95%' },
+
+  // ✅ 타입 태그 스타일 추가
+  typeTag: { flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#1f6feb',
+    borderRadius:999, paddingHorizontal:8, paddingVertical:2 },
+  typeTagText: { fontSize:10, color:'#fff', fontWeight:'700' },
 
   modalBackdrop: { flex:1, backgroundColor:'rgba(0,0,0,0.25)' },
   modalCard: { position:'absolute', left:0, right:0, bottom:0, backgroundColor:'#fff', borderTopLeftRadius:16, borderTopRightRadius:16, padding:16 },
