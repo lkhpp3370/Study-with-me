@@ -19,6 +19,11 @@ const Post = require('./models/Post');
 const Comment = require('./models/Comment');
 const Review = require('./models/Review');
 
+// 📌 장소추천 관련 모델
+const Place = require('./models/Place');
+const PlaceReview = require('./models/PlaceReview');
+const FavoritePlace = require('./models/FavoritePlace');
+
 async function seedDatabase() {
   try {
     const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/studywithme';
@@ -40,7 +45,10 @@ async function seedDatabase() {
       StudyApplication.deleteMany({}),
       Post.deleteMany({}),
       Comment.deleteMany({}),
-      Review.deleteMany({})
+      Review.deleteMany({}),
+      Place.deleteMany({}),
+      PlaceReview.deleteMany({}),
+      FavoritePlace.deleteMany({})
     ]);
     console.log('✅ 기존 데이터 삭제 완료');
 
@@ -351,6 +359,76 @@ async function seedDatabase() {
       { study: studies[1]._id, user: user4._id, rating: 4, comment: '도움이 많이 되었어요.' }
     ]);
     console.log('✅ 리뷰 생성 완료');
+
+    // 🟢 장소 추천 기본 데이터
+  const places = await Place.insertMany([
+    {
+      name: '카페 브리즈',
+      address: '부산 남구 용소로 1',
+      latitude: 35.1379,
+      longitude: 129.0556,
+      type: 'cafe',                        // ✅ 카페
+      openingHours: '09:00~22:00',         // ✅ 이용시간 추가
+      open_24h: false,
+      groupAvailable: true,
+      powerOutlet: true,
+      wifi: true,
+      price: '보통',
+      quietLevel: '보통',
+      noise: 3,
+      pending: false,
+    },
+    { 
+      name: '집중 스터디카페',
+      address: '부산 남구 용소로 2',
+      latitude: 35.1369,
+      longitude: 129.0592,
+      type: 'study',                       // ✅ 스터디카페
+      openingHours: '08:00~23:00',         // ✅ 이용시간 추가
+      open_24h: false,
+      groupAvailable: true,
+      powerOutlet: true,
+      wifi: true,
+      price: '저렴',
+      quietLevel: '조용함',
+      noise: 2,
+      pending: false,
+    },
+    {
+      name: '시립 도서관',
+      address: '부산 남구 용소로 3',
+      latitude: 35.1402,
+      longitude: 129.0612,
+      type: 'library',                     // ✅ 도서관
+      openingHours: '09:00~18:00',         // ✅ 이용시간 추가
+      open_24h: true,
+      groupAvailable: false,
+      powerOutlet: false,
+      wifi: true,
+      price: '무료',
+      quietLevel: '조용함',
+      noise: 1,
+      pending: false,
+    }
+  ]);
+  console.log('✅ 장소 추천 기본 데이터 생성 완료');
+
+
+    // 🟢 장소 리뷰
+    await PlaceReview.insertMany([
+      { place: places[0]._id, user: user1._id, rating: 5, comment: '분위기 좋고 조용합니다.' },
+      { place: places[1]._id, user: user2._id, rating: 4, comment: '시설이 깨끗해요.' },
+      { place: places[2]._id, user: user3._id, rating: 5, comment: '스터디하기 최적!' },
+    ]);
+    console.log('✅ 장소 리뷰 생성 완료');
+
+    // 🟢 즐겨찾기
+    await FavoritePlace.insertMany([
+      { user: user1._id, place: places[0]._id },
+      { user: user2._id, place: places[1]._id },
+      { user: user3._id, place: places[2]._id },
+    ]);
+    console.log('✅ 즐겨찾기 데이터 생성 완료');
 
     process.exit();
   } catch (err) {

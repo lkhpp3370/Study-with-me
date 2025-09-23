@@ -37,12 +37,12 @@ app.use(session({
 // 기본 라우트
 app.get('/', (req, res) => res.send('Backend server is running!'));
 
-// 📌 라우트 연결
+// 📌 기존 라우트
 app.use('/profile', require('./routes/profile'));
 app.use('/main', require('./routes/main'));
 app.use('/auth', require('./routes/auth'));
-app.use('/studies', require('./routes/study'));     // 스터디 생성/검색/조회
-app.use('/schedule', require('./routes/schedule')); // 일정
+app.use('/studies', require('./routes/study'));
+app.use('/schedule', require('./routes/schedule'));
 app.use('/notification', require('./routes/notification'));
 app.use('/chat', require('./routes/chat'));
 app.use('/chatroom', require('./routes/chatroom'));
@@ -51,6 +51,11 @@ app.use('/attendance', require('./routes/attendance'));
 app.use('/reviews', require('./routes/review'));
 app.use('/comments', require('./routes/comment'));
 app.use('/applications', require('./routes/application'));
+
+// ✅ 장소 추천 관련 라우트 추가
+app.use('/places', require('./routes/place'));
+app.use('/reviews/place', require('./routes/placeReview')); // 장소 리뷰
+app.use('/favorites', require('./routes/favorite'));        // 즐겨찾기
 
 // ✅ 김현서 프로젝트에서 가져온 라우트
 app.use('/material', require('./routes/material'));
@@ -80,7 +85,7 @@ io.on('connection', (socket) => {
         content: message,
       });
 
-      // ✅ lastMessage 미리보기 (네 쪽 코드 유지)
+      // ✅ lastMessage 미리보기
       let preview = '';
       if (type === 'image') preview = '[이미지]';
       else if (type === 'vote') preview = '[투표]';
