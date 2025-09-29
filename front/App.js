@@ -41,6 +41,7 @@ import ApplicationManageScreen from './screens/ApplicationManageScreen';
 import PlaceReviewScreen from './screens/PlaceReviewScreen';
 import PlaceEditRequestScreen from './screens/PlaceEditRequestScreen';
 import BoardDetail from './screens/BoardDetail';
+import StudyManagementScreen from './screens/StudyManagementScreen'; 
 
 // ✅ 검색 결과 화면 (샘플)
 function SearchResultsScreen({ route }) {
@@ -119,7 +120,8 @@ export default function App() {
         <Stack.Screen name="ReviewScreen" component={ReviewScreen} options={{ headerShown: true, title: '리뷰' }} />
         <Stack.Screen name="CommentScreen" component={CommentScreen} options={{ headerShown: true, title: '댓글' }} />
         <Stack.Screen name="ApplicationManageScreen" component={ApplicationManageScreen} options={{ headerShown: true, title: '가입 신청 관리' }} />
-
+        <Stack.Screen name="StudyManagementScreen" component={StudyManagementScreen} options={{ headerShown: false }} />
+        
         {/* 출석 */}
         <Stack.Screen name="MonthlyRanking" component={MonthlyRankingScreen} options={{ headerShown: true, title: '월간 랭킹' }} />
         <Stack.Screen name="UserAttendance" component={UserAttendanceScreen} options={{ headerShown: true, title: '내 출석 기록' }} />
