@@ -63,7 +63,7 @@ app.use(require('./routes/material'));
 app.use('/api/posts', require('./routes/postRoutes'));
 app.use(require('./routes/folder'));
 app.use('/uploads', express.static('uploads'));
-
+app.use('/api/postcomments', require('./routes/postcomment'));
 const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
