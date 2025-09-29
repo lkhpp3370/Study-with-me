@@ -57,8 +57,6 @@ exports.getPostsByStudy = async (req, res) => {
 };
 
 // 게시글 등록
-// postController.js (수정 후)
-
 // 특정 스터디에 게시글 작성
 exports.createPost = async (req, res) => {
   try {
@@ -154,25 +152,37 @@ exports.updatePost = async (req, res) => {
 // 게시글 삭제
 exports.deletePost = async (req, res) => {
   try {
-    // 💡 1. 로그인 상태 확인
+    // 💡 1. 로그인 상태 확인 (기존 로직 유지)
     if (!req.session.user) {
       return res.status(401).json({ message: '로그인이 필요합니다.' });
     }
 
-    const post = await Post.findById(req.params.id);
-    // 💡 2. 게시글 존재 여부 확인
+    const { userId } = req.body; // 💡 변경: 프론트엔드에서 보낸 userId를 사용합니다.
+    
+    // 💡 변경: 게시글을 찾을 때 study 필드를 populate하여 스터디 정보를 가져오고,
+    // 스터디 정보 내 host 정보까지 가져오도록 nested populate를 사용합니다.
+    const post = await Post.findById(req.params.id).populate({
+        path: 'study',
+        populate: { path: 'host', select: '_id' }
+    });
+
+    // 💡 2. 게시글 존재 여부 확인 (기존 로직 유지)
     if (!post) {
       return res.status(404).json({ message: '게시글을 찾을 수 없습니다.' });
     }
 
-    // 💡 3. 권한 확인: 게시글 작성자와 현재 로그인한 사용자가 동일한지 비교
-    if (post.author.toString() !== req.session.user._id.toString()) {
-      return res.status(403).json({ message: '삭제 권한이 없습니다.' });
+    // 💡 3. 권한 확인 로직 추가: 작성자이거나 스터디장인지 확인
+    const isAuthor = post.author.toString() === userId;
+    // post.study.host._id에 스터디장의 ID가 있습니다.
+    const isStudyHost = post.study.host && post.study.host._id.toString() === userId;
+
+    if (!isAuthor && !isStudyHost) {
+      return res.status(403).json({ message: '게시글을 삭제할 권한이 없습니다.' });
     }
-
+    
+    // 💡 4. 삭제 실행
     await Post.findByIdAndDelete(req.params.id);
-
-    res.status(200).json({ message: '게시글이 성공적으로 삭제되었습니다.' });
+    res.status(200).json({ message: '게시글 삭제 성공' });
   } catch (error) {
     console.error("❌ 게시글 삭제 오류:", error.message);
     res.status(500).json({ message: "게시글 삭제 실패", error: error.message });
