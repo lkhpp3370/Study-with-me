@@ -2,7 +2,18 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const StudyMenu = ({ isVisible, onClose, isHost, members, onLeaveStudy, hostId, onDelegateHost }) => {
+// onManageStudy prop이 추가되었습니다.
+const StudyMenu = ({ 
+  isVisible, 
+  onClose, 
+  isHost, 
+  members, 
+  onLeaveStudy, 
+  hostId, 
+  onDelegateHost, 
+  onManageStudy,
+  onViewProfile
+}) => {
   const handleLeaveStudy = () => {
     Alert.alert(
       "스터디 나가기",
@@ -25,6 +36,21 @@ const StudyMenu = ({ isVisible, onClose, isHost, members, onLeaveStudy, hostId, 
       { cancelable: false }
     );
   };
+  
+  // 스터디 관리 버튼 핸들러
+  const handleManageStudy = () => {
+    if (onManageStudy) {
+      onManageStudy(); // Studyroommain에서 전달된 네비게이션 함수 호출
+    }
+  };
+
+  const handleViewProfile = (memberId) => {
+    onClose(); // 메뉴 닫기
+    if (onViewProfile) {
+      onViewProfile(memberId);
+    }
+  };
+
   return (
     <Modal
       animationType="fade"
@@ -41,7 +67,8 @@ const StudyMenu = ({ isVisible, onClose, isHost, members, onLeaveStudy, hostId, 
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.menuBody}>
-            {/* 스터디원 목록 */}
+            
+            {/* 스터디원 목록 제목 부분 */}
             <View style={styles.menuSection}>
               <Text style={styles.sectionTitle}>스터디원 목록</Text>
               <View style={styles.dropdownIcon}>
@@ -51,28 +78,22 @@ const StudyMenu = ({ isVisible, onClose, isHost, members, onLeaveStudy, hostId, 
             
             {/* 멤버 목록을 실제 데이터로 렌더링 */}
             {members.map((member) => (
-              <View key={member._id} style={styles.memberItem}>
+              <TouchableOpacity 
+                key={member._id} 
+                style={styles.memberItem}
+                onPress={() => handleViewProfile(member._id)}
+              >
                 <Ionicons name="person-circle-outline" size={20} color="#555" />
                 <Text style={styles.memberName}>{member.username}</Text>
-                {isHost && member._id !== hostId && (
-                  <TouchableOpacity
-                    style={styles.delegateButton}
-                    onPress={() => onDelegateHost(member._id, member.username)}
-                  >
-                    <Text style={styles.delegateButtonText}>위임</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+              </TouchableOpacity>
             ))}
             
             {/* 호스트 전용 메뉴 */}
             {isHost && (
               <>
-                <TouchableOpacity style={styles.menuItem}>
+                {/* '스터디 관리' 버튼 */}
+                <TouchableOpacity style={styles.menuItem} onPress={handleManageStudy}>
                   <Text style={styles.menuItemText}>스터디 관리</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.menuItem}>
-                  <Text style={styles.menuItemText}>스터디장 위임</Text>
                 </TouchableOpacity>
               </>
             )}

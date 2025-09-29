@@ -1,10 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Dimensions, View, Text, StyleSheet, TouchableOpacity, ScrollView, PanResponder, Animated, Image, Alert, Modal } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../services/api';
 import StudyMenu from './StudyMenu'; // StudyMenu 컴포넌트 import
 import AsyncStorage from '@react-native-async-storage/async-storage'; 
+import { useFocusEffect } from '@react-navigation/native'; 
 
 // 달력 한국어 설정
 LocaleConfig.locales['ko'] = {
@@ -77,8 +78,9 @@ const Studyroommain = ({ navigation, route }) => {
                         });
                         if (response.status === 200) {
                             Alert.alert('알림', `${newHostName}님에게 스터디장 권한이 위임되었습니다.`, [
-                                { text: '확인', onPress: () => navigation.goBack() }
+                                { text: '확인' }
                             ]);
+                            setIsMenuVisible(false);
                         }
                     } catch (error) {
                         console.error('스터디장 위임 실패:', error);
@@ -90,62 +92,59 @@ const Studyroommain = ({ navigation, route }) => {
         { cancelable: false }
     );
   };
+  // ⭐️ 스터디 관리 화면으로 이동하는 함수 추가
+  const handleManageStudy = () => {
+    setIsMenuVisible(false); // 메뉴 닫기
+    navigation.navigate('StudyManagementScreen', { // 🚨 StudyManagementScreen으로 네비게이션
+      studyId: studyId,
+      studyName: studyName,
+      members: members,
+      hostId: studyInfo?.host?._id 
+    });
+  };
+  const handleViewProfile = (userId) => {
+    navigation.navigate('내 프로필', { profileUserId: userId }); 
+  };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const filesRes = await api.get(`/studies/${studyId}/files`);
-        setFiles(filesRes.data);
-
-        if (studyId) {
-          const scheduleRes = await api.get(`/schedule/study/${studyId}`);
-          setSchedules(scheduleRes.data);
-        }
-
-        const postsRes = await api.get(`/api/posts/study/${studyId}`);
-        setPosts(postsRes.data);
-        
-        // 스터디 정보 가져오기 (방장 여부 확인 및 멤버 데이터 전달을 위해)
-        const studyRes = await api.get(`/studies/${studyId}`);
-        setStudyInfo(studyRes.data);
-        
-        // 여기에 현재 로그인된 사용자의 ID를 설정해야 합니다.
-        const currentUserId = await AsyncStorage.getItem('userId'); 
-        if (currentUserId && studyRes.data.host && studyRes.data.host._id === currentUserId) {
-          setIsHost(true);
-        }
-
-        setMembers(studyRes.data.members);
-
-      } catch (err) {
-        console.error('데이터 불러오기 실패:', err);
-        Alert.alert('오류', '데이터를 불러오는데 실패했습니다.');
+  const fetchData = useCallback(async () => {
+    try {
+      const currentUserId = await AsyncStorage.getItem('userId');
+      
+      const [filesRes, scheduleRes, postsRes, studyRes] = await Promise.all([
+        api.get(`/studies/${studyId}/files`),
+        studyId ? api.get(`/schedule/study/${studyId}`) : Promise.resolve({ data: [] }),
+        api.get(`/api/posts/study/${studyId}`),
+        api.get(`/studies/${studyId}`),
+      ]);
+      
+      setFiles(filesRes.data);
+      setSchedules(scheduleRes.data);
+      setPosts(postsRes.data);
+      setStudyInfo(studyRes.data);
+      setMembers(studyRes.data.members);
+      
+      // 🚨 최신 studyRes.data를 기반으로 isHost 업데이트
+      if (currentUserId && studyRes.data.host && studyRes.data.host._id === currentUserId) {
+        setIsHost(true);
+      } else {
+        setIsHost(false);
       }
-    };
-    fetchData();
+
+    } catch (err) {
+      console.error('데이터 불러오기 실패:', err);
+      Alert.alert('오류', '데이터를 불러오는데 실패했습니다.');
+    }
   }, [studyId]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+      return () => {
+        // 화면이 블러(blur) 상태가 될 때 실행될 정리 작업 (필요한 경우 추가)
+      };
+    }, [fetchData])
+  );
 
   const selectedSchedules = schedules.filter(s => s.date === selectedDate);
-
-  // 채팅 버튼 위치
-  const initialX = Dimensions.get('window').width - 76;
-  const initialY = Dimensions.get('window').height - 160;
-  const [pan] = useState(new Animated.ValueXY({ x: initialX, y: initialY }));
-  const lastOffset = useRef({ x: initialX, y: initialY }).current;
-
-  const panResponder = PanResponder.create({
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderMove: (e, gestureState) => {
-      pan.setValue({
-        x: lastOffset.x + gestureState.dx,
-        y: lastOffset.y + gestureState.dy
-      });
-    },
-    onPanResponderRelease: (e, gestureState) => {
-      lastOffset.x += gestureState.dx;
-      lastOffset.y += gestureState.dy;
-    }
-  });
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#f5f6f7' }} contentContainerStyle={{ flexGrow: 1 }}>
@@ -201,7 +200,17 @@ const Studyroommain = ({ navigation, route }) => {
         {/* 게시판 */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>게시판</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Board', { studyId, studyName })}>
+          <TouchableOpacity onPress={() => {
+            if (studyInfo && studyInfo.host) {
+              navigation.navigate('Board', {
+                studyId: studyId,
+                studyName: studyName,
+                studyHostId: studyInfo.host._id
+              });
+            } else {
+              Alert.alert('오류', '스터디 정보를 불러오고 있습니다. 잠시 후 다시 시도해주세요.');
+            }
+          }}>
             <Text style={styles.moreText}>+ MORE</Text>
           </TouchableOpacity>
         </View>
@@ -235,11 +244,6 @@ const Studyroommain = ({ navigation, route }) => {
             ))
           )}
         </View>
-
-        {/* 드래그 가능한 채팅 버튼 */}
-        <Animated.View style={[styles.chatButton, pan.getLayout()]} {...panResponder.panHandlers}>
-          <Ionicons name="chatbubble-ellipses-outline" size={28} color="white" />
-        </Animated.View>
       </View>
       
       {/* 메뉴 컴포넌트 추가 */}
@@ -251,6 +255,8 @@ const Studyroommain = ({ navigation, route }) => {
         onLeaveStudy={handleLeaveStudy}
         hostId={studyInfo?.host?._id}
         onDelegateHost={handleDelegateHost}
+        onManageStudy={handleManageStudy}
+        onViewProfile={handleViewProfile}
       />
     </ScrollView>
   );
@@ -276,5 +282,4 @@ const styles = StyleSheet.create({
   scheduleText: { color: '#555', fontSize: 13 },
   addScheduleButton: { marginTop: 10, backgroundColor: '#00adf5', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 5 },
   addScheduleText: { color: 'white', fontWeight: 'bold' },
-  chatButton: { position: 'absolute', width: 56, height: 56, borderRadius: 28, backgroundColor: '#00adf5', justifyContent: 'center', alignItems: 'center', elevation: 5 }
 });

@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, TextInput, FlatList, Dimensions, SafeAreaView, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import api from '../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Board = ({ navigation, route }) => {
   // 💡 studyId가 유효한지 확인하고, 유효하지 않으면 알림을 띄웁니다.
-  const { studyId, studyName } = route.params || {};
+  const { studyId, studyName, studyHostId } = route.params || {};
   if (!studyId) {
     Alert.alert('오류', '스터디 정보를 불러올 수 없습니다. 다시 시도해 주세요.');
     navigation.goBack(); // 또는 다른 적절한 페이지로 이동
@@ -55,33 +56,42 @@ const Board = ({ navigation, route }) => {
     }
   };
 
-  const handleDeletePost = async (postId) => {
-    Alert.alert(
-      '게시글 삭제',
-      '정말로 이 게시글을 삭제하시겠습니까?',
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '삭제',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.delete(`/api/posts/${postId}`, { withCredentials: true });
-              Alert.alert('성공', '게시글이 삭제되었습니다.');
-              fetchPosts();
-            } catch (error) {
-              if (error.response && error.response.status === 403) {
-                console.log('권한이 없어 게시글을 삭제할 수 없습니다.');
-                Alert.alert('권한 오류', '게시글을 삭제할 권한이 없습니다.');
-              } else {
-                console.error('삭제 오류:', error);
-                Alert.alert('오류', error.response?.data?.message || '삭제에 실패했습니다.');
+  const handleDeletePost = async (postId, postAuthorId) => {
+      const currentUserId = await AsyncStorage.getItem('userId');
+      if (!currentUserId) {
+          Alert.alert('오류', '로그인 정보를 찾을 수 없습니다.');
+          return;
+      }
+
+      const isAuthor = postAuthorId === currentUserId;
+      const isStudyHost = studyHostId === currentUserId; // 💡 스터디장 ID와 현재 ID 비교
+
+      if (!isAuthor && !isStudyHost) {
+          Alert.alert('권한 없음', '게시글을 삭제할 권한이 없습니다.');
+          return;
+      }
+      
+      Alert.alert(
+          "삭제 확인",
+          "정말 이 게시글을 삭제하시겠습니까?",
+          [
+              { text: "취소", style: "cancel" },
+              { 
+                  text: "삭제", 
+                  onPress: async () => {
+                      try {
+                          // 💡 변경: DELETE 요청 시 userId를 body에 포함하여 전송
+                          await api.delete(`/api/posts/${postId}`, { data: { userId: currentUserId } });
+                          Alert.alert('성공', '게시글이 삭제되었습니다.');
+                          fetchPosts(); 
+                      } catch (error) {
+                          console.error('게시글 삭제 실패:', error);
+                          Alert.alert('오류', error.response?.data?.message || '삭제에 실패했습니다.');
+                      }
+                  }
               }
-            }
-          }
-        }
-      ]
-    );
+          ]
+      );
   };
 
   const renderItem = ({ item, index }) => {
@@ -95,16 +105,18 @@ const Board = ({ navigation, route }) => {
         minute: '2-digit'
       });
     };
+    const postAuthorId = item.author?._id || item.author;
 
     return (
       <TouchableOpacity
         style={styles.tableRow}
         onPress={() => navigation.navigate('BoardDetail', {
           postId: item._id,
-          studyId,
-          studyName
+          studyId: studyId,
+          studyName: studyName,
+          studyHostId: studyHostId
         })}
-        onLongPress={() => handleDeletePost(item._id)}
+        onLongPress={() => handleDeletePost(item._id, postAuthorId)}
       >
         <Text style={styles.tableCell}>{posts.length - index}</Text>
         <Text style={[styles.tableCell, styles.titleCell]} numberOfLines={1}>
