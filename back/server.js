@@ -33,7 +33,7 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://192.168.127.9:27017/studywithme';
+const MONGO_URI = "mongodb+srv://202011630_db_user:202011630_rlagustj@cluster0.gbsiqft.mongodb.net/"
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
@@ -180,13 +180,11 @@ io.on('connection', (socket) => {
 =========================== */
 mongoose.connect(MONGO_URI)
   .then(() => {
-    console.log('✅ MongoDB 연결 성공');
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`✅ 서버 실행 중`);
-      console.log(` → Local:   http://localhost:${PORT}`);
-      console.log(` → Network: http://${ip.address()}:${PORT}`);
-    });
+    console.log('✅ MongoDB Atlas 연결 성공');
+    console.log('📌 현재 연결된 호스트:', mongoose.connection.host);
+    console.log('📌 현재 연결된 DB명:', mongoose.connection.name);
   })
   .catch((err) => {
-    console.error('❌ MongoDB 연결 실패:', err.message);
+    console.error('❌ MongoDB Atlas 연결 실패:', err.message);
   });
+
