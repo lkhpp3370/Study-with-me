@@ -23,14 +23,28 @@ export default {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#ffffff',
       },
+      softwareKeyboardLayoutMode: 'resize', // ✅ 중복 android 제거
       edgeToEdgeEnabled: true,
-      package: 'com.anonymous.study',
+      package: 'com.anonymous.study', // ✅ 스토어 배포용 패키지명
     },
     web: {
       favicon: './assets/favicon.png',
     },
     extra: {
       BACKEND_URL: process.env.BACKEND_URL,
+      eas: {
+        projectId: "dc899412-e64e-4e15-a195-61017240fbae",
+      },
     },
-  },
+    plugins: [
+      [
+        "expo-build-properties",
+        {
+          android: {
+            kotlinVersion: "2.0.20"   // ✅ 지원되는 버전으로 강제
+          }
+        }
+      ]
+    ]
+  }
 };

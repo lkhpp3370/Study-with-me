@@ -1,6 +1,14 @@
 .env 파일
 BACKEND_URL=http://192.168.XX.XXX:3000
 
+# 배포용 백엔드 API 주소 (도메인 기반)
+BACKEND_URL=https://api.studywithme.com
+
+# Kakao JS 키 (웹뷰에서 카카오 맵 띄울 때 사용)
+KAKAO_JS_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+
+
 .gitignore
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
