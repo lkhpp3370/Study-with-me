@@ -11,17 +11,28 @@ exports.apply = async (req, res) => {
     const study = await Study.findById(studyId);
     if (!study) return res.status(404).json({ message: '스터디가 존재하지 않습니다.' });
 
-    // 이미 멤버인지
+    // 1. 이미 멤버인지 확인 (Study 모델 기준)
     if (study.members.map(String).includes(String(userId))) {
       return res.status(400).json({ message: '이미 스터디 멤버입니다.' });
     }
-
-    // 모집 중인지 & 정원
+    
+    // ⭐ 2. StudyApplication 상태 확인: 'pending', 'approved', 'rejected' 모두 조회
+    const existingApp = await StudyApplication.findOne({ study: studyId, applicant: userId });
+    
+    if (existingApp) {
+        if (existingApp.status === 'pending') {
+            // 'pending' 상태는 현재 신청 중이므로 재신청을 막음
+            return res.status(400).json({ message: '이미 신청 상태입니다.' });
+        }
+        await StudyApplication.deleteOne({ _id: existingApp._id }); 
+    }
+    
+    // 3. 모집 중인지 & 정원 확인
     if (!study.isRecruiting) return res.status(400).json({ message: '현재 모집 중이 아닙니다.' });
     if (study.capacity > 0 && study.members.length >= study.capacity) {
       return res.status(400).json({ message: '정원이 가득 찼습니다.' });
     }
-
+    // 4. 새 신청서 생성
     const app = await StudyApplication.create({
       study: studyId,
       applicant: userId,
@@ -30,14 +41,11 @@ exports.apply = async (req, res) => {
 
     res.status(201).json({ message: '가입 신청 완료', application: app });
   } catch (err) {
-    // 중복 unique 충돌 처리
-    if (err.code === 11000) {
-      return res.status(400).json({ message: '이미 신청 상태입니다.' });
-    }
     console.error('❌ 가입 신청 실패:', err);
     res.status(500).json({ message: '가입 신청 실패', error: err.message });
   }
 };
+
 
 // GET /applications/:studyId/pending   (스터디장 전용)
 exports.listPending = async (req, res) => {
@@ -133,5 +141,94 @@ exports.reject = async (req, res) => {
   } catch (err) {
     console.error('❌ 거절 실패:', err);
     res.status(500).json({ message: '거절 실패', error: err.message });
+  }
+};
+
+exports.getApplicationStatus = async (req, res) => {
+  try {
+    const { studyId } = req.params;
+    const { userId } = req.query; 
+
+    if (!userId) {
+        return res.status(400).json({ message: 'userId가 필요합니다.' });
+    }
+
+    // 해당 스터디와 사용자에 대한 신청서를 찾습니다.
+    const application = await StudyApplication.findOne({ 
+        study: studyId, 
+        applicant: userId 
+    }).select('status'); // status 필드만 선택하여 효율을 높입니다.
+
+    // 신청서가 없으면 'none', 있으면 해당 status를 반환합니다.
+    const status = application ? application.status : 'none';
+
+    // 응답: { status: 'pending' | 'approved' | 'rejected' | 'none' }
+    res.json({ status });
+  } catch (err) {
+    console.error('❌ 신청 상태 조회 실패:', err);
+    res.status(500).json({ message: '신청 상태 조회 실패', error: err.message });
+  }
+};
+
+exports.listMyPending = async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ message: 'userId가 필요합니다.' });
+    }
+
+    const rows = await StudyApplication.find({ applicant: userId, status: 'pending' })
+      .populate('study', 'title capacity members host') // 스터디의 제목 등 필요한 정보만 가져옵니다.
+      .sort({ createdAt: -1 });
+
+    res.json(rows);
+  } catch (err) {
+    console.error('❌ 내 신청 목록 조회 실패:', err);
+    res.status(500).json({ message: '내 신청 목록 조회 실패', error: err.message });
+  }
+};
+
+exports.listHostPending = async (req, res) => {
+  try {
+    const { hostId } = req.query;
+
+    if (!hostId) {
+      return res.status(400).json({ message: 'hostId가 필요합니다.' });
+    }
+
+    // ⭐ 1. hostId가 호스트인 모든 스터디 목록을 찾습니다.
+    const myStudies = await Study.find({ host: hostId })
+      .select('_id title members host')
+      .populate('members', '_id username grade major gender') 
+      .lean(); 
+
+    if (myStudies.length === 0) {
+      return res.json([]);
+    }
+
+    const myStudyIds = myStudies.map(study => study._id);
+
+    // 2. 이 스터디들에 대한 'pending' 상태의 StudyApplication 개수를 스터디별로 집계합니다.
+    const pendingCounts = await StudyApplication.aggregate([
+      { $match: { study: { $in: myStudyIds }, status: 'pending' } },
+      { $group: { _id: '$study', count: { $sum: 1 } } },
+    ]);
+    
+    // 3. 스터디 목록에 대기 건수(count)를 병합하고 반환합니다.
+    const result = myStudies.map(study => {
+      const pendingItem = pendingCounts.find(item => String(item._id) === String(study._id));
+      
+      return {
+        ...study, // Populate된 members 필드 (이름 정보 포함)를 그대로 사용합니다.
+        count: pendingItem ? pendingItem.count : 0, // 대기 건수
+      };
+    });
+
+    // 응답 형태: [{ _id, title, members, host, count, membersForNav }, ...]
+    res.json(result);
+  } catch (err) {
+    console.error('❌ 호스트 대기 목록 조회 실패:', err);
+    res.status(500).json({ message: '호스트 대기 목록 조회 실패', error: err.message });
   }
 };
