@@ -7,8 +7,10 @@ thunder client
 node.js (Lts)
 
 front
-npm install -g expo-cli
-npm install
+npm install -g expo-cli (개발용)
+npm install -g eas-cli (배포용)  
+//node.js 설치 - powershell에서 "node -v", "npm -v"(npm안되면 "Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned" y 입력 후 엔터)
+npm install // npm install --legacy-peer-deps  (React 버전 충돌 문제시 입력)
 npm start (실행)
 
 back
