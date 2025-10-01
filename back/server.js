@@ -2,7 +2,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const ip = require('ip');
 const http = require('http');
 const { Server } = require('socket.io');
 const session = require('express-session');
@@ -26,11 +25,11 @@ if (!fs.existsSync(uploadDir)) {
 
 // ✅ CORS + 세션
 app.use(cors());
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const MONGO_URI = "mongodb+srv://202011630_db_user:202011630_rlagustj@cluster0.gbsiqft.mongodb.net/"
+const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://202011630_db_user:202011630_rlagustj@cluster0.gbsiqft.mongodb.net/";
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
@@ -67,6 +66,7 @@ app.use(require('./routes/folder'));
 app.use('/api/postcomments', require('./routes/postcomment'));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// ✅ 서버 & 소켓 설정
 const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
@@ -115,7 +115,7 @@ io.on('connection', (socket) => {
       // 메시지 전달
       io.to(roomId).emit('receiveMessage', message);
 
-      // 📌 알림 처리 (간단한 콘솔 출력, 푸시 연동 시 확장)
+      // 📌 알림 처리 (간단한 콘솔 출력)
       const chatRoom = await ChatRoom.findById(roomId);
       for (const userId of chatRoom.members) {
         if (userId.toString() !== senderId) {
@@ -180,8 +180,12 @@ mongoose.connect(MONGO_URI)
     console.log('✅ MongoDB Atlas 연결 성공');
     console.log('📌 현재 연결된 호스트:', mongoose.connection.host);
     console.log('📌 현재 연결된 DB명:', mongoose.connection.name);
+
+    // ✅ Render에서 포트 열기 (0.0.0.0)
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 서버 실행 중: http://localhost:${PORT}`);
+    });
   })
   .catch((err) => {
     console.error('❌ MongoDB Atlas 연결 실패:', err.message);
   });
-
