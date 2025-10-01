@@ -29,7 +29,7 @@ exports.createSchedule = async (req, res) => {
       location,
       createdBy: userId,
       capacity,
-      participants: []
+      participants: [userId] 
     });
     await schedule.save();
 
@@ -181,6 +181,33 @@ exports.getScheduleById = async (req, res) => {
     });
   } catch (err) {
     console.error('❌ 일정 단건 조회 실패:', err.message);
+    res.status(500).json({ message: '서버 오류', error: err.message });
+  }
+};
+
+/** 📌 일정 삭제 (하루 전까지만 가능) */
+exports.deleteSchedule = async (req, res) => {
+  try {
+    const { scheduleId, userId } = req.params;
+
+    const schedule = await Schedule.findById(scheduleId);
+    if (!schedule) return res.status(404).json({ message: '일정을 찾을 수 없습니다.' });
+
+    if (String(schedule.createdBy) !== userId) {
+      return res.status(403).json({ message: '일정 개최자만 삭제할 수 있습니다.' });
+    }
+
+    // 하루 전까지만 가능
+    const start = new Date(schedule.startDate);
+    start.setDate(start.getDate() - 1);
+    if (new Date() > start) {
+      return res.status(400).json({ message: '일정 하루 전까지만 삭제할 수 있습니다.' });
+    }
+
+    await schedule.deleteOne();
+    res.json({ message: '일정이 삭제되었습니다.' });
+  } catch (err) {
+    console.error('❌ 일정 삭제 실패:', err.message);
     res.status(500).json({ message: '서버 오류', error: err.message });
   }
 };

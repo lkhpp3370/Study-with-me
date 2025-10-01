@@ -1,5 +1,5 @@
 // controllers/favoriteController.js
-const Favorite = require('../models/FavoritePlace');
+const Favorite = require('../models/Favorite');
 
 // ✅ 즐겨찾기 조회
 exports.getFavorites = async (req, res) => {
