@@ -25,12 +25,17 @@ exports.loginUser = async (req, res) => {
       return res.status(401).json({ message: '아이디 또는 비밀번호가 일치하지 않습니다.' });
     }
 
+    // 💡 로그인 성공 시 세션에 사용자 정보 저장
+    req.session.user = user;
+    
+    // 💡 세션 정보가 잘 저장되었는지 확인하는 로그 추가
+    console.log('✅ 로그인 성공! 세션에 저장된 유저 정보:', req.session.user);
+
     res.json({ message: '로그인 성공', username: user.username, userId: user._id });
   } catch (err) {
     res.status(500).json({ message: '서버 오류', error: err.message });
   }
 };
-
 
 // ✅ 비밀번호 재설정 코드 요청
 exports.requestResetCode = async (req, res) => {

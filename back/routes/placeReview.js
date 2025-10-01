@@ -10,9 +10,12 @@ router.get('/:placeId', placeReviewController.getReviewsByPlace);
 router.post('/:placeId', placeReviewController.addReview);
 
 // 리뷰 수정
-router.patch('/:reviewId', placeReviewController.updateReview);
+router.patch('/:placeId/:reviewId', placeReviewController.updateReview);
 
 // 리뷰 삭제
-router.delete('/:reviewId', placeReviewController.deleteReview);
+router.delete('/:placeId/:reviewId', placeReviewController.deleteReview);
+
+// 평균 평점/개수 조회
+router.get('/:placeId/avg', placeReviewController.getAvgByPlace);
 
 module.exports = router;

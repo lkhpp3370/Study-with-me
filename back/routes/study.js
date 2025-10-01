@@ -14,4 +14,9 @@ router.get('/:studyId', studyController.getStudyById);
 // ✅ 모집 중단
 router.patch('/:studyId/stop', studyController.stopRecruiting);
 
+// ✅ 스터디에서 멤버 제거
+router.delete('/:studyId/members/:memberId', studyController.removeMember);
+
+// ✅ 스터디장 위임
+router.patch('/:studyId/delegate-host', studyController.delegateHost);
 module.exports = router;
