@@ -183,6 +183,12 @@ mongoose.connect(MONGO_URI)
     console.log('✅ MongoDB Atlas 연결 성공');
     console.log('📌 현재 연결된 호스트:', mongoose.connection.host);
     console.log('📌 현재 연결된 DB명:', mongoose.connection.name);
+
+    // ✅ 여기서 서버 실행
+    server.listen(PORT, () => {
+      console.log(`✅ 서버 실행 중`);
+      console.log(` → Local:   http://localhost:${PORT}`);
+    });
   })
   .catch((err) => {
     console.error('❌ MongoDB Atlas 연결 실패:', err.message);
