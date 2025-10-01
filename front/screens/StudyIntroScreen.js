@@ -47,9 +47,11 @@ export default function StudyIntroScreen({ route, navigation }) {
   // 데이터 불러오기
   const fetchData = async () => {
     try {
+      // 1. 기존 스터디 상세 정보 로딩
       const resStudy = await axios.get(`${BACKEND_URL}/studies/${study._id}`);
       setStudy(resStudy.data);
 
+      // 2. 기타 정보 로딩 (댓글, 리뷰, 랭킹 등 기존 로직)
       const resComments = await axios.get(
         `${BACKEND_URL}/comments/${study._id}?viewerId=${userId}`
       );
@@ -71,10 +73,28 @@ export default function StudyIntroScreen({ route, navigation }) {
       } catch (_) {
         setRankInfo(null);
       }
+
+      // ⭐ 3. 새로 추가된 로직: 현재 사용자의 가입 신청 상태 확인
+      if (study._id && userId) {
+        const resStatus = await axios.get(`${BACKEND_URL}/applications/${study._id}/status`, {
+          params: { userId: userId },
+        });
+        
+        // 상태가 'pending'이면 applied를 true로 설정합니다.
+        if (resStatus.data.status === 'pending') {
+          setApplied(true);
+        } else {
+          // 'none', 'approved', 'rejected' 상태라면 false로 설정합니다.
+          setApplied(false); 
+        }
+      }
+      // ----------------------------------------------------
+
     } catch (err) {
       console.error('❌ 스터디 상세 불러오기 실패:', err.message);
     }
   };
+
 
   useEffect(() => {
     if (study?._id) fetchData();

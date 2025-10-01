@@ -23,6 +23,7 @@ export default {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#ffffff',
       },
+      android: { softwareKeyboardLayoutMode: 'resize' },
       edgeToEdgeEnabled: true,
       package: 'com.anonymous.study',
     },

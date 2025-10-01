@@ -1,3 +1,4 @@
+// screens/MainScreen.js
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
@@ -46,7 +47,7 @@ export default function MainScreen() {
 
   const [userName, setUserName] = useState('');
   const [studyGroups, setStudyGroups] = useState([]);
-  const [schedules, setSchedules] = useState([]); // 서버에서 내려오는 스터디 일정
+  const [schedules, setSchedules] = useState([]); // 서버에서 내려오는 스터디 일정 (원본 그대로)
   const [routinesRaw, setRoutinesRaw] = useState([]);
 
   // 새로고침 상태
@@ -122,7 +123,7 @@ export default function MainScreen() {
     fetchData();
   };
 
-  /** 스터디 일정 → 시간표 포맷 (Schedule.js와 동일 구조) */
+  /** 스터디 일정 → 시간표 포맷 (타임테이블 전용) */
   const studySchedules = useMemo(() => {
     return (schedules || []).map(s => {
       const base = s.startDate ? new Date(s.startDate) : new Date();
@@ -171,7 +172,7 @@ export default function MainScreen() {
     }).filter(Boolean);
   }, [routinesRaw, weekStart]);
 
-  /** 합치기 */
+  /** 합치기(타임테이블 전용) */
   const mergedSchedules = useMemo(() => [...studySchedules, ...routines], [studySchedules, routines]);
 
   /** 주간 라벨 (예: "월\n9/8") */
@@ -246,6 +247,50 @@ export default function MainScreen() {
       }
     ]);
   };
+
+  /** ✅ 이번 주 "카드용" 원본 일정 목록 (날짜/요일/시간/개최자 표시용) */
+  const weeklyScheduleCards = useMemo(() => {
+    const dayNamesShort = ['일','월','화','수','목','금','토'];
+
+    return (schedules || [])
+      .map(s => {
+        const base = s.startDate ? new Date(s.startDate) : new Date();
+
+        const shouldShow = s.repeatWeekly
+          ? isAfterOrSameWeek(weekStart, base)
+          : isSameWeek(weekStart, base);
+        if (!shouldShow) return null;
+
+        // 이번 주의 실제 발생 날짜
+        let occurDate;
+        if (s.repeatWeekly) {
+          const offset = (s.dayOfWeek + 6) % 7; // 월=0, ... 일=6 기준
+          occurDate = new Date(weekStart);
+          occurDate.setDate(weekStart.getDate() + offset);
+        } else {
+          occurDate = new Date(s.startDate);
+        }
+
+        const hostName = typeof s.createdBy === 'object' && s.createdBy
+          ? s.createdBy.username
+          : undefined;
+
+        return {
+          _id: s._id,
+          studyTitle: s.study?.title || '스터디',
+          title: s.title,
+          description: s.description,
+          occurDate,
+          dayLabel: dayNamesShort[s.dayOfWeek],
+          startTime: s.startTime,
+          endTime: s.endTime,
+          location: s.location || '장소 미정',
+          hostName: hostName || '알 수 없음',
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.occurDate - b.occurDate || String(a.startTime).localeCompare(String(b.startTime)));
+  }, [schedules, weekStart]);
 
   /** 렌더 */
   return (
@@ -334,7 +379,7 @@ export default function MainScreen() {
                 <TouchableOpacity
                   key={i}
                   onPress={() => item.type === 'study'
-                    ? navigation.navigate('Studyroommain', { studyId: item.study, studyName: item.title })
+                    ? navigation.navigate('Studyroommain', { studyId: item.study._id, studyName: item.study.title })
                     : handleDeleteRoutine(item._id)}
                   style={[styles.cell, { width: dayWidth, backgroundColor, justifyContent: 'center', alignItems: 'center', paddingHorizontal:2 }]}
                 >
@@ -345,20 +390,27 @@ export default function MainScreen() {
           </View>
         ))}
 
-        {/* ✅ 이번 주 스터디 일정 목록 */}
+        {/* ✅ 이번 주 스터디 일정 카드 목록 (원본 기반) */}
         <Text style={styles.sectionTitle}>이번 주 스터디 일정</Text>
         <View style={styles.studyList}>
-          {studySchedules.length === 0 ? (
+          {weeklyScheduleCards.length === 0 ? (
             <Text style={styles.emptyText}>이번 주 스터디 일정이 없습니다</Text>
           ) : (
-            studySchedules.map((s) => (
+            weeklyScheduleCards.map((s) => (
               <View key={s._id} style={styles.scheduleItem}>
-                <Text style={styles.scheduleTitle}>{s.title}</Text>
-                <Text style={styles.scheduleInfo}>📍 {s.location || '장소 미정'}</Text>
-                <Text style={styles.scheduleInfo}>🕒 {s.start}시 ~ {s.end}시</Text>
+                <Text style={styles.scheduleTitle}>[{s.studyTitle}] {s.title}</Text>
+
+                <Text style={styles.scheduleInfo}>
+                  📅 {s.occurDate.toLocaleDateString('ko-KR')} ({s.dayLabel})
+                </Text>
+
                 {s.description && (
-                  <Text style={styles.scheduleDesc}>{s.description}</Text>
+                  <Text style={styles.scheduleDesc}>📝 {s.description}</Text>
                 )}
+
+                <Text style={styles.scheduleInfo}>🕒 {s.startTime} ~ {s.endTime}</Text>
+                <Text style={styles.scheduleInfo}>📍 {s.location}</Text>
+                <Text style={styles.scheduleInfo}>👤 개최자: {s.hostName}</Text>
               </View>
             ))
           )}
@@ -456,7 +508,7 @@ export default function MainScreen() {
                 <TextInput
                   keyboardType="numeric"
                   value={String(newRoutine.startHour)}
-                  onChangeText={(t) => setNewRoutine({ ...newRoutine, startHour: parseInt(t || '0', 10) })}
+                  onChangeText={(t) => setNewRoutine({ ...prev, startHour: parseInt(t || '0', 10) })}
                   style={styles.input}
                   placeholder="예: 8"
                 />
@@ -467,7 +519,7 @@ export default function MainScreen() {
                 <TextInput
                   keyboardType="numeric"
                   value={String(newRoutine.endHour)}
-                  onChangeText={(t) => setNewRoutine({ ...newRoutine, endHour: parseInt(t || '0', 10) })}
+                  onChangeText={(t) => setNewRoutine({ ...prev, endHour: parseInt(t || '0', 10) })}
                   style={styles.input}
                   placeholder="예: 10"
                 />
