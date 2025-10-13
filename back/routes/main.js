@@ -15,10 +15,11 @@ router.get('/:userId', async (req, res) => {
     // 2. 가입한 스터디들의 _id 배열
     const studyIds = studies.map(s => s._id);
 
-    // 3. 해당 스터디들의 일정
+    // 3. 해당 스터디들의 일정 (createdBy, study 같이 populate)
     const schedules = await Schedule.find({ study: { $in: studyIds } })
       .sort({ startDate: 1, startTime: 1 })
-      .populate('study', 'title');
+      .populate('study', 'title')
+      .populate('createdBy', 'username');
 
     res.json({ studies, schedules });
   } catch (error) {
