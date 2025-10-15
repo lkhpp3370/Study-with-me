@@ -1,40 +1,60 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, FlatList, TextInput, StyleSheet, Alert, Dimensions, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, TextInput, StyleSheet, Alert, Dimensions, Modal, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Linking from 'expo-linking';
 import api from '../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
-const FileShare = () => {
+const FileShare = ({ route }) => {
+  const { studyId, studyHostId } = route.params;
   const [folders, setFolders] = useState([]);
   const [selectedFolderId, setSelectedFolderId] = useState(null);
   const [files, setFiles] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFolderModal, setShowFolderModal] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [renameItemId, setRenameItemId] = useState(null);
+  const [renameItemName, setRenameItemName] = useState('');
+  const [currentUserId, setCurrentUserId] = useState(null); // 💡 추가: 현재 사용자 ID 상태
 
+  // 💡 추가: 컴포넌트 로드 시 AsyncStorage에서 userId를 가져옵니다.
+  useEffect(() => {
+    const getUserId = async () => {
+      const id = await AsyncStorage.getItem('userId');
+      setCurrentUserId(id);
+    };
+    getUserId();
+  }, []);
+  
   const fetchFoldersAndFiles = useCallback(async () => {
     try {
-      const foldersResponse = await api.get('/folder');
-      const uncategorizedFolder = { id: 'no-folder', name: '기타' };
-      setFolders([uncategorizedFolder, ...foldersResponse.data]);
+      const foldersResponse = await api.get(`/studies/${studyId}/folders`);
+      // 💡 변경: 각 폴더에 filesCount를 계산하여 추가
+      const updatedFolders = await Promise.all(
+        foldersResponse.data.map(async (folder) => {
+          const filesResponse = await api.get(`/studies/${studyId}/files?folderId=${folder._id}`);
+          return { ...folder, filesCount: filesResponse.data.length };
+        })
+      );
+      setFolders(updatedFolders);
 
-      let filesUrl = '/material/files';
+      let filesUrl = `/studies/${studyId}/files`;
       if (selectedFolderId) {
         filesUrl += `?folderId=${selectedFolderId}`;
       }
-
+      
       const filesResponse = await api.get(filesUrl);
       setFiles(filesResponse.data);
     } catch (error) {
       console.error('데이터 불러오기 실패:', error);
       Alert.alert('오류', error.response?.data?.message || '데이터를 불러오는데 실패했습니다.');
     }
-  }, [selectedFolderId]);
+  }, [selectedFolderId, studyId]);
 
   useEffect(() => {
     fetchFoldersAndFiles();
@@ -50,7 +70,7 @@ const FileShare = () => {
   const confirmAddFolder = async () => {
     if (newFolderName && newFolderName.trim()) {
       try {
-        await api.post('/folder', { name: newFolderName.trim() });
+        await api.post(`/studies/${studyId}/folders`, { name: newFolderName.trim(), userId: currentUserId });
         Alert.alert('폴더 생성 성공', `'${newFolderName.trim()}' 폴더가 생성되었습니다.`);
         setShowFolderModal(false);
         setNewFolderName('');
@@ -64,21 +84,69 @@ const FileShare = () => {
     }
   };
 
-  const handleDeleteFolder = async (id, name) => {
-    try {
-      await api.delete(`/folder/${id}`);
-      Alert.alert('삭제 성공', `'${name}' 폴더가 삭제되었습니다.`);
-      fetchFoldersAndFiles();
-      if (selectedFolderId === id) setSelectedFolderId(null);
-    } catch (error) {
-      console.error('폴더 삭제 실패:', error);
-      Alert.alert('삭제 실패', error.response?.data?.message || '알 수 없는 오류');
+  const handleRenameSubmit = async () => {
+    if (renameItemName && renameItemName.trim()) {
+      try {
+        if (renameItemId.startsWith('folder')) {
+          const folderId = renameItemId.replace('folder-', '');
+          await handleRenameFolder(folderId, renameItemName.trim());
+        } else {
+          const fileId = renameItemId.replace('file-', '');
+          await handleRenameFile(fileId, renameItemName.trim());
+        }
+        setShowRenameModal(false);
+        setRenameItemName('');
+      } catch (error) {
+        // 이미 내부 함수에서 Alert를 띄우므로 여기서 추가하지 않음
+      }
+    } else {
+      Alert.alert('알림', '이름을 입력하세요.');
     }
   };
+  
+  // 📁 폴더 삭제 함수 수정
+  const handleDeleteFolder = async (folderId, name) => {
+    if (!currentUserId) {
+      Alert.alert('오류', '로그인 정보를 찾을 수 없습니다.');
+      return;
+    }
+    Alert.alert(
+      '폴더 삭제',
+      `'${name}' 폴더를 정말 삭제하시겠습니까?`,
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '삭제',
+          onPress: async () => {
+            try {
+              // 💡 변경: userId를 body에 포함하여 DELETE 요청
+              await api.delete(`/studies/${studyId}/folders/${folderId}`, { data: { userId: currentUserId } });
+              Alert.alert('삭제 성공', `'${name}' 폴더가 삭제되었습니다.`);
+              fetchFoldersAndFiles();
+              if (selectedFolderId === folderId) setSelectedFolderId(null);
+            } catch (error) {
+              console.error('폴더 삭제 실패:', error);
+              Alert.alert('삭제 실패', error.response?.data?.message || '알 수 없는 오류');
+            }
+          },
+        },
+      ]
+    );
+  };
 
+  // 📁 폴더 이름 변경 함수 수정
   const handleRenameFolder = async (id, newName) => {
+    if (!currentUserId) {
+      Alert.alert('오류', '로그인 정보를 찾을 수 없습니다.');
+      return;
+    }
+    if (!newName || !newName.trim()) {
+      Alert.alert('알림', '새 이름을 입력하세요.');
+      return;
+    }
     try {
-      await api.patch(`/folder/${id}`, { newName });
+      // 💡 변경: userId를 body에 포함하여 PATCH 요청
+      await api.patch(`/studies/${studyId}/folders/${id}`, { newName: newName.trim(), userId: currentUserId });
       Alert.alert('이름 변경 성공', '폴더 이름이 변경되었습니다.');
       fetchFoldersAndFiles();
     } catch (error) {
@@ -87,20 +155,84 @@ const FileShare = () => {
     }
   };
 
-  const handleDeleteFile = async (id) => {
-    try {
-      await api.delete(`/material/files/${id}`);
-      Alert.alert('삭제 성공', '파일이 삭제되었습니다.');
-      fetchFoldersAndFiles();
-    } catch (error) {
-      console.error('파일 삭제 실패:', error);
-      Alert.alert('삭제 실패', error.response?.data?.message || '알 수 없는 오류');
+  const handleLongPressFolder = async (folder) => {
+    const isOwner = folder.owner && (folder.owner.toString() === currentUserId);
+    const isStudyHost = studyHostId?.toString() === currentUserId;
+    
+    if (!isOwner && !isStudyHost) {
+      Alert.alert('권한 없음', '이 폴더를 삭제하거나 이름을 변경할 권한이 없습니다.');
+      return;
     }
+    
+    Alert.alert(
+      '폴더 옵션',
+      null,
+      [
+        {
+          text: '삭제',
+          onPress: () => {
+            if (folder.filesCount > 0) {
+              Alert.alert('경고', '폴더 내에 파일이 존재하여 삭제할 수 없습니다.');
+            } else {
+              handleDeleteFolder(folder._id, folder.name); // 💡 변경: 이름도 함께 전달
+            }
+          },
+        },
+        {
+          text: '이름 변경',
+          onPress: () => {
+            setRenameItemId(`folder-${folder._id}`);
+            setRenameItemName(folder.name);
+            setShowRenameModal(true);
+          },
+        },
+        { text: '취소', style: 'cancel' },
+      ],
+    );
+  };
+ 
+  // 📄 파일 삭제 함수 수정
+  const handleDeleteFile = async (id) => {
+    if (!currentUserId) {
+      Alert.alert('오류', '로그인 정보를 찾을 수 없습니다.');
+      return;
+    }
+    Alert.alert(
+      '파일 삭제',
+      '이 파일을 정말 삭제하시겠습니까?',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '삭제',
+          onPress: async () => {
+            try {
+              // 💡 변경: userId를 body에 포함하여 DELETE 요청
+              await api.delete(`/studies/${studyId}/files/${id}`, { data: { userId: currentUserId } });
+              Alert.alert('삭제 성공', '파일이 삭제되었습니다.');
+              fetchFoldersAndFiles();
+            } catch (error) {
+              console.error('파일 삭제 실패:', error);
+              Alert.alert('삭제 실패', error.response?.data?.message || '알 수 없는 오류');
+            }
+          },
+        },
+      ]
+    );
   };
 
+  // 📄 파일 이름 변경 함수 수정
   const handleRenameFile = async (id, newName) => {
+    if (!currentUserId) {
+      Alert.alert('오류', '로그인 정보를 찾을 수 없습니다.');
+      return;
+    }
+    if (!newName || !newName.trim()) {
+      Alert.alert('알림', '새 이름을 입력하세요.');
+      return;
+    }
     try {
-      await api.patch(`/material/files/${id}`, { name: newName });
+      // 💡 변경: userId를 body에 포함하여 PATCH 요청
+      await api.patch(`/studies/${studyId}/files/${id}`, { name: newName.trim(), userId: currentUserId });
       Alert.alert('이름 변경 성공', '파일 이름이 변경되었습니다.');
       fetchFoldersAndFiles();
     } catch (error) {
@@ -109,32 +241,68 @@ const FileShare = () => {
     }
   };
 
+  const handleLongPressFile = async (file) => {
+    const isUploader = file.uploader && (file.uploader.toString() === currentUserId);
+    const isStudyHost = studyHostId?.toString() === currentUserId;
+
+    if (!isUploader && !isStudyHost) {
+      Alert.alert('알림', '권한이 없습니다.');
+      return;
+    }
+
+    Alert.alert(
+      '파일 옵션',
+      null,
+      [
+        { text: '삭제', onPress: () => handleDeleteFile(file._id) },
+        {
+          text: '이름 변경',
+          onPress: () => {
+            if (Platform.OS === 'ios') {
+                Alert.prompt('파일 이름 변경', '새로운 이름을 입력하세요.', [
+                    { text: '취소', style: 'cancel' },
+                    { text: '확인', onPress: newName => handleRenameFile(file._id, newName) },
+                ]);
+            } else {
+              setRenameItemId(`file-${file._id}`);
+              setRenameItemName(file.title);
+              setShowRenameModal(true);
+            }
+          },
+        },
+        { text: '취소', style: 'cancel' },
+      ]
+    );
+  };
+  
   const handleUpload = async () => {
+    if (!currentUserId) {
+      Alert.alert('오류', '로그인 정보를 찾을 수 없습니다.');
+      return;
+    }
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: '*/*' });
       if (result.canceled || !result.assets || result.assets.length === 0) {
         Alert.alert('업로드 취소됨');
         return;
       }
-
       const file = result.assets[0];
       const { uri, name, mimeType } = file;
-
       const fileInfo = await FileSystem.getInfoAsync(uri);
       if (!fileInfo.exists) {
         Alert.alert('파일 오류', '파일이 존재하지 않습니다.');
         return;
       }
-
       const formData = new FormData();
       formData.append('title', name);
       formData.append('file', { uri, name, type: mimeType || 'application/octet-stream' });
-
-      if (selectedFolderId && selectedFolderId !== 'no-folder') {
+      if (selectedFolderId) {
         formData.append('folderId', selectedFolderId);
       }
+      // 💡 추가: 업로드 시 uploader(userId)를 함께 전송
+      formData.append('uploader', currentUserId);
 
-      await api.post('/material', formData, {
+      await api.post(`/studies/${studyId}/files`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         withCredentials: true,
       });
@@ -157,35 +325,27 @@ const FileShare = () => {
         value={searchQuery}
         onChangeText={setSearchQuery}
       />
-
       <View style={styles.folderContainer}>
         {folders.map((folder) => (
           <TouchableOpacity
-            key={folder.id}
+            key={folder._id} // 💡 변경: key를 _id로 변경
             style={[
               styles.folder,
-              selectedFolderId === folder.id && styles.folderSelected
+              selectedFolderId === folder._id && styles.folderSelected
             ]}
-            onPress={() => setSelectedFolderId(folder.id)}
-            onLongPress={() => {
-              if (folder.id !== 'no-folder') {
-                Alert.alert('폴더 옵션', folder.name, [
-                  { text: '삭제', onPress: () => handleDeleteFolder(folder.id, folder.name) },
-                  { text: '이름 변경', onPress: () => handleRenameFolder(folder.id, folder.name) },
-                  { text: '취소', style: 'cancel' },
-                ]);
-              }
-            }}
+            onPress={() => setSelectedFolderId(folder._id)}
+            onLongPress={() => handleLongPressFolder(folder)}
           >
-            <Icon name="folder" size={40} color={selectedFolderId === folder.id ? '#4A90E2' : '#333'} />
-            <Text style={styles.folderName}>{folder.name || ''}</Text>
+            <Icon name="folder" size={40} color={selectedFolderId === folder._id ? '#4A90E2' : '#333'} />
+            <Text numberOfLines={1} style={styles.folderName}>{folder.name || ''}</Text>
           </TouchableOpacity>
         ))}
       </View>
+      <View style={styles.divider} />
 
       <FlatList
         data={filteredFiles}
-        keyExtractor={(item, index) => item._id || `file-${index}`}
+        keyExtractor={(item) => item._id}
         numColumns={3}
         renderItem={({ item }) => (
           <TouchableOpacity
@@ -200,7 +360,7 @@ const FileShare = () => {
                 Alert.alert('오류', '파일을 열 수 없습니다.');
               });
             }}
-            onLongPress={() => handleDeleteFile(item._id)}
+            onLongPress={() => handleLongPressFile(item)}
           >
             <Icon name="insert-drive-file" size={36} color="#333" />
             <Text numberOfLines={1} style={styles.fileName}>{item.title || '이름 없음'}</Text>
@@ -210,28 +370,57 @@ const FileShare = () => {
         ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>파일이 없습니다</Text></View>}
       />
 
-      <TouchableOpacity style={styles.addButton} onPress={() => setShowFolderModal(true)}>
-        <Icon name="add" size={36} color="#4A90E2" />
-        <Text style={styles.addButtonText}>새 폴더 추가</Text>
-      </TouchableOpacity>
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.actionButton} onPress={() => setShowFolderModal(true)}>
+          <Icon name="create-new-folder" size={24} color="#4A90E2" />
+          <Text style={styles.actionButtonText}>새 폴더</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionButton} onPress={handleUpload}>
+          <Icon name="cloud-upload" size={24} color="#4A90E2" />
+          <Text style={styles.actionButtonText}>파일 업로드</Text>
+        </TouchableOpacity>
+      </View>
 
-      {/* 폴더 추가 모달 */}
+      {/* 새 폴더 추가 모달 */}
       <Modal visible={showFolderModal} transparent animationType="fade">
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }}>
-          <View style={{ backgroundColor: 'white', padding: 24, borderRadius: 12, width: '80%' }}>
-            <Text style={{ fontSize: 16, marginBottom: 12 }}>새 폴더 이름을 입력하세요</Text>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>새 폴더 이름</Text>
             <TextInput
               value={newFolderName}
               onChangeText={setNewFolderName}
               placeholder="폴더 이름"
-              style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 8, marginBottom: 16 }}
+              style={styles.modalInput}
             />
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-              <TouchableOpacity onPress={() => setShowFolderModal(false)} style={{ marginRight: 16 }}>
-                <Text style={{ color: '#888' }}>취소</Text>
+            <View style={styles.modalButtonContainer}>
+              <TouchableOpacity onPress={() => setShowFolderModal(false)} style={styles.modalButton}>
+                <Text style={styles.modalButtonText}>취소</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={confirmAddFolder}>
-                <Text style={{ color: '#0d2b40', fontWeight: 'bold' }}>확인</Text>
+              <TouchableOpacity onPress={confirmAddFolder} style={styles.modalButton}>
+                <Text style={styles.modalButtonText}>확인</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 이름 변경 모달 (Android용) */}
+      <Modal visible={showRenameModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>이름 변경</Text>
+            <TextInput
+              value={renameItemName}
+              onChangeText={setRenameItemName}
+              placeholder="새로운 이름"
+              style={styles.modalInput}
+            />
+            <View style={styles.modalButtonContainer}>
+              <TouchableOpacity onPress={() => setShowRenameModal(false)} style={styles.modalButton}>
+                <Text style={styles.modalButtonText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleRenameSubmit} style={styles.modalButton}>
+                <Text style={styles.modalButtonText}>확인</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -259,6 +448,65 @@ const styles = StyleSheet.create({
   fileList: { paddingBottom: 80 },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 50 },
   emptyText: { fontSize: 16, color: '#999' },
-  addButton: { alignItems: 'center', marginVertical: 16 },
-  addButtonText: { color: '#4A90E2', fontSize: 14, marginTop: 4 },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  actionButton: {
+    alignItems: 'center',
+    flex: 1,
+    paddingVertical: 8,
+  },
+  actionButtonText: {
+    color: '#4A90E2',
+    fontSize: 14,
+    marginTop: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    padding: 24,
+    borderRadius: 12,
+    width: '80%',
+  },
+  modalTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 16,
+  },
+  modalButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  modalButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginLeft: 16,
+  },
+  modalButtonText: {
+    color: '#4A90E2',
+    fontWeight: 'bold',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E0E0E0',
+    marginVertical: 10,
+  }
 });

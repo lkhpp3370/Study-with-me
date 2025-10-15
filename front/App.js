@@ -13,7 +13,7 @@ import LoginScreen from './screens/LoginScreen';
 import MainScreen from './screens/MainScreen';
 import SearchCategories from './screens/SearchCategories';
 import SearchScreen from './screens/SearchScreen';
-import ChatScreen from './screens/ChatScreen';
+import ChatScreen from './screens/ChatScreen';       
 import ChatRoomScreen from './screens/ChatRoomScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import SetProfile from './screens/SetProfile';
@@ -40,6 +40,8 @@ import ScheduleAdd from './screens/ScheduleAdd';
 import ApplicationManageScreen from './screens/ApplicationManageScreen';
 import PlaceReviewScreen from './screens/PlaceReviewScreen';
 import PlaceEditRequestScreen from './screens/PlaceEditRequestScreen';
+import BoardDetail from './screens/BoardDetail';
+import StudyManagementScreen from './screens/StudyManagementScreen'; 
 
 // ✅ 검색 결과 화면 (샘플)
 function SearchResultsScreen({ route }) {
@@ -92,12 +94,8 @@ export default function App() {
         <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
 
         {/* 채팅 */}
-        <Stack.Screen name="채팅목록" component={ChatScreen} options={{ headerShown: false }} />
-        <Stack.Screen
-          name="ChatRoomScreen"
-          component={ChatRoomScreen}
-          options={{ headerShown: true, title: '채팅방' }}
-        />
+        <Stack.Screen name="채팅목록" component={ChatRoomScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="채팅방" component={ChatScreen} options={{ headerShown: true, title: '채팅방' }} />
 
         {/* 회원/프로필 */}
         <Stack.Screen name="회원가입" component={SignUpScreen} options={{ headerShown: false }} />
@@ -111,13 +109,15 @@ export default function App() {
         <Stack.Screen name="스터디상세" component={Studyroommain} options={{ headerShown: false }} />
         <Stack.Screen name="카테고리선택" component={CategorySelectScreen} options={{ headerShown: true, title: '카테고리 선택' }} />
         <Stack.Screen name="스터디개설" component={CreateStudyScreen} options={{ headerShown: true, title: '스터디 개설' }} />
+        <Stack.Screen name="BoardDetail" component={BoardDetail} options={{ headerShown: true, title: '게시글 상세' }} />
         <Stack.Screen name="카테고리검색" component={SearchCategories} options={{ headerShown: true, title: '카테고리 검색' }} />
         <Stack.Screen name="SearchResults" component={SearchResultsScreen} options={{ headerShown: true, title: '검색 결과' }} />
         <Stack.Screen name="스터디소개" component={StudyIntroScreen} options={{ headerShown: true, title: '스터디 소개' }} />
         <Stack.Screen name="ReviewScreen" component={ReviewScreen} options={{ headerShown: true, title: '리뷰' }} />
         <Stack.Screen name="CommentScreen" component={CommentScreen} options={{ headerShown: true, title: '댓글' }} />
         <Stack.Screen name="ApplicationManageScreen" component={ApplicationManageScreen} options={{ headerShown: true, title: '가입 신청 관리' }} />
-
+        <Stack.Screen name="StudyManagementScreen" component={StudyManagementScreen} options={{ headerShown: false }} />
+        
         {/* 출석 */}
         <Stack.Screen name="MonthlyRanking" component={MonthlyRankingScreen} options={{ headerShown: true, title: '월간 랭킹' }} />
         <Stack.Screen name="UserAttendance" component={UserAttendanceScreen} options={{ headerShown: true, title: '내 출석 기록' }} />
