@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
-import { BACKEND_URL } from '@env';
+import { BACKEND_URL } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 function Star({ filled, size = 20, onPress }) {
@@ -252,3 +252,4 @@ const styles = StyleSheet.create({
   dateText: { color: '#888', fontSize: 12 },
   comment: { color: '#222' },
 });
+
