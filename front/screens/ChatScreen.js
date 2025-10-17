@@ -21,7 +21,7 @@ import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import io from 'socket.io-client';
 import api from '../services/api';
-import { BACKEND_URL } from '@env';
+import { BACKEND_URL } from '../services/api';
 
 const SOCKET_URL = BACKEND_URL;
 
@@ -401,3 +401,4 @@ const styles = StyleSheet.create({
   input: { flex: 1, backgroundColor: '#f1f1f1', borderRadius: 20, paddingHorizontal: 12, fontSize: 15 },
   sendBtn: { marginLeft: 6, backgroundColor: '#007aff', borderRadius: 20, padding: 8 },
 });
+
