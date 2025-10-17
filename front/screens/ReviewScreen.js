@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
-import api, { BACKEND_URL } from '../services/api';
+import { BACKEND_URL } from '../services/api';
 
 export default function ReviewScreen({ route }) {
   const { studyId, userId } = route.params;
@@ -147,4 +147,5 @@ const styles = StyleSheet.create({
   deleteBtn: { backgroundColor: 'red', padding: 10, borderRadius: 6, alignItems: 'center' },
   reviewCard: { padding: 12, backgroundColor: '#f5f5f5', borderRadius: 8, marginBottom: 10 },
 });
+
 
