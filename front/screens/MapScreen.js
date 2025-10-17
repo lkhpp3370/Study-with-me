@@ -8,13 +8,13 @@ import { WebView } from 'react-native-webview';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
-import { BACKEND_URL } from '@env';
 import * as Location from 'expo-location'; // ✅ 수정: 정적 import 사용
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
-import { KAKAO_JS_KEY } from '@env';
+import Constants from 'expo-constants';
 
+const { BACKEND_URL, KAKAO_JS_KEY } = Constants.expoConfig?.extra ?? {};
 // 초기 중심: 부경대(대연캠퍼스 인근)
 const DEFAULT_CENTER = { latitude: 35.1335, longitude: 129.105 };
 
@@ -946,3 +946,4 @@ const styles = StyleSheet.create({
   loadingBadge: { position:'absolute', top:Platform.select({ ios:60, android:30 }), alignSelf:'center', backgroundColor:'#fff',
     borderRadius:999, paddingHorizontal:12, paddingVertical:6, shadowColor:'#000', shadowOpacity:0.12, shadowRadius:6, shadowOffset:{width:0,height:2} },
 });
+
