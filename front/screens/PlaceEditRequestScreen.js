@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
-import { BACKEND_URL } from '@env';
+import { BACKEND_URL } from '../services/api';
 
 export default function PlaceEditRequestScreen({ route, navigation }) {
   const { placeId, place: placeFromParams } = route.params;
@@ -261,3 +261,4 @@ const styles = StyleSheet.create({
   },
   submitBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
 });
+
