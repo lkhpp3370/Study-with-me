@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import axios from 'axios';
 import { Ionicons } from '@expo/vector-icons';
-import { BACKEND_URL } from '@env';
+import { BACKEND_URL } from '../services/api';
 
 export default function CommentScreen({ route }) {
   const { studyId, userId } = route.params;
@@ -147,3 +147,4 @@ const styles = StyleSheet.create({
     padding: 8,
   },
 });
+
