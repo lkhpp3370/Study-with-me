@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
-import { BACKEND_URL } from '@env';
+import { BACKEND_URL } from '../services/api';
 import { useFocusEffect } from '@react-navigation/native';
 
 export default function StudyIntroScreen({ route, navigation }) {
@@ -420,3 +420,4 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
 });
+
