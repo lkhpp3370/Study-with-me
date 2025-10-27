@@ -1,5 +1,6 @@
 .env 파일
 BACKEND_URL=http://192.168.XX.XXX:3000
+KAKAO_JS_KEY=8735db830fce16c65a56a48c7907c10c
 
 .gitignore
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
