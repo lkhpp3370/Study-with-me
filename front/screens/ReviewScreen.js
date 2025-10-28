@@ -147,5 +147,3 @@ const styles = StyleSheet.create({
   deleteBtn: { backgroundColor: 'red', padding: 10, borderRadius: 6, alignItems: 'center' },
   reviewCard: { padding: 12, backgroundColor: '#f5f5f5', borderRadius: 8, marginBottom: 10 },
 });
-
-

@@ -6,15 +6,15 @@ import {
   TouchableOpacity, 
   FlatList, 
   Alert, 
-  ActivityIndicator, // <--- ActivityIndicator 추가
-  ScrollView, // <--- ScrollView 추가
+  ActivityIndicator,
+  ScrollView,
+  SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const StudyManagementScreen = ({ navigation, route }) => {
-  // 안전하게 기본값 지정
   const { studyId = '', studyName = '', members: initialMembers = [], hostId = '' } = route.params || {};
   const [members, setMembers] = useState(Array.isArray(initialMembers) ? initialMembers : []);
   const [pendingApps, setPendingApps] = useState([]);
@@ -45,8 +45,7 @@ const StudyManagementScreen = ({ navigation, route }) => {
             }
           }
         }
-      ],
-      { cancelable: false }
+      ]
     );
   };
 
@@ -58,6 +57,7 @@ const StudyManagementScreen = ({ navigation, route }) => {
         { text: "취소", style: "cancel" },
         {
           text: "퇴출",
+          style: "destructive",
           onPress: async () => {
             try {
               const response = await api.delete(`/studies/${studyId}/members/${memberId}`);
@@ -72,45 +72,53 @@ const StudyManagementScreen = ({ navigation, route }) => {
               console.error('스터디원 퇴출 실패:', error);
               Alert.alert('오류', '스터디원 퇴출에 실패했습니다.');
             }
-          },
-          style: "destructive"
+          }
         }
-      ],
-      { cancelable: false }
+      ]
     );
   };
 
   const renderMemberItem = ({ item }) => {
-    // 안전하게 문자열 비교
     const isCurrentUserHost = String(item._id) === String(hostId);
 
     return (
-      <View style={styles.memberItem}>
-        <Ionicons name="person-circle-outline" size={24} color="#555" />
+      <View style={styles.memberCard}>
+        <View style={[styles.memberAvatar, isCurrentUserHost && styles.hostAvatar]}>
+          <Ionicons 
+            name={isCurrentUserHost ? "star" : "person"} 
+            size={20} 
+            color={isCurrentUserHost ? "#FFD700" : "#4C63D2"} 
+          />
+        </View>
 
-        {/* username과 host 라벨을 분리된 Text로 렌더링(문자열이 View에 직접 노출되는 것을 방지) */}
-        <View style={{ marginLeft: 10, flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={styles.memberName} numberOfLines={1}>
-            {String(item.username ?? '')}
-          </Text>
-          {isCurrentUserHost && (
-            <Text style={styles.hostText}> (스터디장)</Text>
-          )}
+        <View style={styles.memberInfo}>
+          <View style={styles.memberNameRow}>
+            <Text style={styles.memberName} numberOfLines={1}>
+              {String(item.username ?? '')}
+            </Text>
+            {isCurrentUserHost && (
+              <View style={styles.hostBadge}>
+                <Text style={styles.hostBadgeText}>스터디장</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {!isCurrentUserHost && (
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={[styles.actionButton, styles.delegateButton]}
+              style={styles.delegateButton}
               onPress={() => handleDelegateHost(item._id, item.username)}
             >
+              <Ionicons name="swap-horizontal" size={14} color="#fff" style={{ marginRight: 4 }} />
               <Text style={styles.delegateButtonText}>위임</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.actionButton, styles.kickButton]}
+              style={styles.kickButton}
               onPress={() => handleKickMember(item._id, item.username)}
             >
+              <Ionicons name="exit-outline" size={14} color="#fff" style={{ marginRight: 4 }} />
               <Text style={styles.kickButtonText}>퇴출</Text>
             </TouchableOpacity>
           </View>
@@ -120,16 +128,12 @@ const StudyManagementScreen = ({ navigation, route }) => {
   };
   
   const fetchMembers = useCallback(async () => {
-      try {
-          // Study 상세 정보를 불러오는 API (예시: /studies/:studyId)를 사용해야 합니다.
-          // 이 API가 Study 객체 전체(members 배열 포함)를 반환한다고 가정합니다.
-          const resStudy = await api.get(`/studies/${studyId}`);
-          
-          // 반환된 데이터에서 최신 members 배열을 가져와 상태를 업데이트합니다.
-          setMembers(resStudy.data.members || []);
-      } catch (err) {
-          console.error('❌ 스터디 멤버 목록 갱신 실패:', err);
-      }
+    try {
+      const resStudy = await api.get(`/studies/${studyId}`);
+      setMembers(resStudy.data.members || []);
+    } catch (err) {
+      console.error('스터디 멤버 목록 갱신 실패:', err);
+    }
   }, [studyId]);
 
   const fetchData = useCallback(async () => {
@@ -137,7 +141,6 @@ const StudyManagementScreen = ({ navigation, route }) => {
       setLoading(true);
       const currentUserId = await AsyncStorage.getItem('userId');
       
-      // 1. 가입 대기 신청 목록 불러오기
       const pendingRes = await api.get(`/applications/${studyId}/pending`, {
         params: { hostId: currentUserId },
       });
@@ -153,164 +156,397 @@ const StudyManagementScreen = ({ navigation, route }) => {
     fetchData();
   }, [fetchData]);
 
-  // 가입 승인
   const handleApprove = async (applicationId) => {
     try {
       const currentUserId = await AsyncStorage.getItem('userId');
       await api.patch(`/applications/${applicationId}/approve`, { hostId: currentUserId });
       Alert.alert('승인 완료', '해당 신청을 승인했습니다.');
       
-      // 승인 후 목록 갱신
       fetchData(); 
       fetchMembers();
     } catch (err) {
       Alert.alert('실패', err.response?.data?.message || '승인 실패');
-      fetchData(); // 에러 발생 시 목록 갱신 시도
+      fetchData();
     }
   };
 
-  // 가입 거절
   const handleReject = async (applicationId) => {
     try {
       const currentUserId = await AsyncStorage.getItem('userId');
       await api.patch(`/applications/${applicationId}/reject`, { hostId: currentUserId });
       Alert.alert('거절 완료', '해당 신청을 거절했습니다.');
-      fetchData(); // 목록 갱신
+      fetchData();
     } catch (err) {
       Alert.alert('실패', err.response?.data?.message || '거절 실패');
-      fetchData(); // 에러 발생 시 목록 갱신 시도
+      fetchData();
     }
   };
-// ⭐ 가입 대기 카드 렌더링 함수
+
   const renderApplicationCard = (app) => (
     <View key={app._id} style={styles.applicationCard}>
-      <Text style={styles.applicantName}>{app.applicant?.username} 님</Text>
-      <Text>학년: {app.applicant?.grade || '-'}</Text>
-      <Text>전공: {app.applicant?.major || '-'}</Text>
-      <Text>성별: {app.applicant?.gender || '-'}</Text>
-      {app.message ? <Text>메시지: {app.message}</Text> : null}
+      <View style={styles.applicantHeader}>
+        <View style={styles.applicantAvatar}>
+          <Ionicons name="person-add" size={20} color="#4C63D2" />
+        </View>
+        <Text style={styles.applicantName}>{app.applicant?.username} 님</Text>
+      </View>
+
+      <View style={styles.applicantInfo}>
+        <View style={styles.infoRow}>
+          <Ionicons name="school" size={14} color="#666" />
+          <Text style={styles.infoText}>학년: {app.applicant?.grade || '-'}</Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Ionicons name="book" size={14} color="#666" />
+          <Text style={styles.infoText}>전공: {app.applicant?.major || '-'}</Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Ionicons name="person" size={14} color="#666" />
+          <Text style={styles.infoText}>성별: {app.applicant?.gender || '-'}</Text>
+        </View>
+        {app.message && (
+          <View style={styles.messageBox}>
+            <Ionicons name="chatbubble" size={14} color="#4C63D2" />
+            <Text style={styles.messageText}>{app.message}</Text>
+          </View>
+        )}
+      </View>
 
       <View style={styles.btnRow}>
         <TouchableOpacity
-          style={[styles.btn, { backgroundColor: 'green' }]}
+          style={styles.approveBtn}
           onPress={() => handleApprove(app._id)}
         >
-          <Text style={{ color: 'white', fontWeight: 'bold' }}>승인</Text>
+          <Ionicons name="checkmark-circle" size={16} color="#fff" style={{ marginRight: 4 }} />
+          <Text style={styles.approveBtnText}>승인</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.btn, { backgroundColor: 'red' }]}
+          style={styles.rejectBtn}
           onPress={() => handleReject(app._id)}
         >
-          <Text style={{ color: 'white', fontWeight: 'bold' }}>거절</Text>
+          <Ionicons name="close-circle" size={16} color="#fff" style={{ marginRight: 4 }} />
+          <Text style={styles.rejectBtnText}>거절</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 
   return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{studyName} 관리</Text>
-          <View style={{ width: 24 }} />
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="chevron-back" size={28} color="#fff" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{studyName} 관리</Text>
+        <View style={{ width: 28 }} />
+      </View>
+      
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="people" size={20} color="#4C63D2" style={{ marginRight: 8 }} />
+            <Text style={styles.sectionTitle}>스터디원 목록</Text>
+            <View style={styles.countBadge}>
+              <Text style={styles.countText}>{members.length}</Text>
+            </View>
+          </View>
+
+          {members.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="people-outline" size={48} color="#D5D9FF" />
+              <Text style={styles.emptyText}>스터디원이 없습니다</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={members}
+              keyExtractor={(item) => item._id}
+              renderItem={renderMemberItem}
+              scrollEnabled={false}
+              contentContainerStyle={styles.memberList}
+            />
+          )}
         </View>
-        
-        {/* 💥 전체 화면을 ScrollView로 감싸 멤버 목록과 대기 목록을 모두 표시 */}
-        <ScrollView contentContainerStyle={styles.scrollContent}>
 
-          {/* 1. 기존 스터디원 목록 섹션 */}
-          <View style={styles.listHeader}>
-            <Text style={styles.listTitle}>스터디원 목록 ({members.length}명)</Text>
-          </View>
-          <FlatList
-            data={members}
-            keyExtractor={(item) => item._id}
-            renderItem={renderMemberItem}
-            ListEmptyComponent={<Text style={styles.emptyText}>스터디원 없음</Text>}
-            scrollEnabled={false} // ⭐ ScrollView 내부이므로 스크롤 비활성화
-          />
-          
-          {/* 섹션 구분선 */}
-          <View style={styles.separator} />
-
-          {/* 2. ⭐ 새로운 가입 대기 목록 섹션 */}
-          <View style={styles.listHeader}>
-            <Text style={styles.listTitle}>가입 대기 목록 ({loading ? '로딩 중...' : `${pendingApps.length}명`})</Text>
-          </View>
-          <View style={styles.listContent}>
-            {loading ? (
-              <ActivityIndicator size="large" color="#001f3f" style={{ paddingVertical: 20 }} />
-            ) : pendingApps.length === 0 ? (
-              <Text style={styles.emptyText}>가입 대기 신청이 없습니다.</Text>
-            ) : (
-              pendingApps.map(renderApplicationCard) // 대기 목록 카드 렌더링
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="hourglass" size={20} color="#4C63D2" style={{ marginRight: 8 }} />
+            <Text style={styles.sectionTitle}>가입 대기 목록</Text>
+            {!loading && (
+              <View style={styles.countBadge}>
+                <Text style={styles.countText}>{pendingApps.length}</Text>
+              </View>
             )}
           </View>
-          
-        </ScrollView>
-      </View>
-    );
-  };
 
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#4C63D2" />
+              <Text style={styles.loadingText}>로딩 중...</Text>
+            </View>
+          ) : pendingApps.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="time-outline" size={48} color="#D5D9FF" />
+              <Text style={styles.emptyText}>가입 대기 신청이 없습니다</Text>
+            </View>
+          ) : (
+            <View style={styles.applicationsList}>
+              {pendingApps.map(renderApplicationCard)}
+            </View>
+          )}
+        </View>
+
+        <View style={{ height: 30 }} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f6f7' },
+  container: {
+    flex: 1,
+    backgroundColor: '#FAFBFC',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#001f3f',
-    paddingTop: 40,
-    paddingHorizontal: 15,
-    paddingBottom: 15,
+    backgroundColor: '#4C63D2',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  headerTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  listHeader: { padding: 15, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
-  listTitle: { fontSize: 16, fontWeight: 'bold', color: '#333' },
-  listContent: { paddingHorizontal: 15 },
-  memberItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  memberName: { fontSize: 16, flexShrink: 1 }, // flex 대신 flexShrink로 안정화
-  hostText: { color: '#00adf5', fontWeight: 'bold', fontSize: 14 },
-  buttonContainer: { flexDirection: 'row', marginLeft: 'auto' },
-  actionButton: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 5, marginLeft: 8 },
-  delegateButton: { backgroundColor: '#00adf5' },
-  delegateButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
-  kickButton: { backgroundColor: '#dc3545' },
-  kickButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
-  emptyText: { textAlign: 'center', marginTop: 50, color: '#777' },
-  scrollContent: { 
-    paddingBottom: 20 
+  headerTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
   },
-  separator: { 
-    height: 10, 
-    backgroundColor: '#f5f6f7' 
+  scrollContent: {
+    paddingBottom: 20,
+  },
+  section: {
+    marginTop: 12,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  sectionTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1a1a1a',
+  },
+  countBadge: {
+    backgroundColor: '#4C63D2',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  countText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  memberList: {
+    backgroundColor: '#fff',
+  },
+  memberCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    backgroundColor: '#fff',
+  },
+  memberAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#E8EAFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  hostAvatar: {
+    backgroundColor: '#FFF9E5',
+  },
+  memberInfo: {
+    flex: 1,
+  },
+  memberNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  memberName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginRight: 8,
+  },
+  hostBadge: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  hostBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#8B6914',
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  delegateButton: {
+    flexDirection: 'row',
+    backgroundColor: '#4C63D2',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  delegateButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  kickButton: {
+    flexDirection: 'row',
+    backgroundColor: '#FF5B5B',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  kickButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  applicationsList: {
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    backgroundColor: '#fff',
   },
   applicationCard: {
     backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 10,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#E8EAFF',
+    borderLeftWidth: 4,
+    borderLeftColor: '#4C63D2',
   },
-  applicantName: { 
-    fontSize: 16, 
-    fontWeight: 'bold', 
-    marginBottom: 5,
-    color: '#001f3f'
+  applicantHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  applicantAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E8EAFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  applicantName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1a1a1a',
+  },
+  applicantInfo: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  infoText: {
+    fontSize: 13,
+    color: '#666',
+  },
+  messageBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    backgroundColor: '#F8F9FF',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  messageText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#1a1a1a',
+    lineHeight: 18,
   },
   btnRow: {
     flexDirection: 'row',
-    marginTop: 10,
-    justifyContent: 'flex-end',
-    gap: 10,
+    gap: 8,
   },
-  btn: {
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 6,
+  approveBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#22C55E',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  approveBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  rejectBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#FF5B5B',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rejectBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    backgroundColor: '#fff',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 12,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    backgroundColor: '#fff',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 12,
   },
 });
 

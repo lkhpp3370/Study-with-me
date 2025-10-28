@@ -1,8 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Alert, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-// onManageStudy prop이 추가되었습니다.
 const StudyMenu = ({ 
   isVisible, 
   onClose, 
@@ -14,6 +13,8 @@ const StudyMenu = ({
   onManageStudy,
   onViewProfile
 }) => {
+  const [isMemberListExpanded, setIsMemberListExpanded] = useState(true);
+
   const handleLeaveStudy = () => {
     Alert.alert(
       "스터디 나가기",
@@ -21,31 +22,28 @@ const StudyMenu = ({
       [
         {
           text: "취소",
-          onPress: () => console.log("취소"),
           style: "cancel"
         },
         {
           text: "나가기",
           onPress: () => {
-            onClose(); // 메뉴 닫기
-            onLeaveStudy(); // 🚨 스터디 나가기 로직 실행
+            onClose();
+            onLeaveStudy();
           },
           style: "destructive"
         }
-      ],
-      { cancelable: false }
+      ]
     );
   };
   
-  // 스터디 관리 버튼 핸들러
   const handleManageStudy = () => {
     if (onManageStudy) {
-      onManageStudy(); // Studyroommain에서 전달된 네비게이션 함수 호출
+      onManageStudy();
     }
   };
 
   const handleViewProfile = (memberId) => {
-    onClose(); // 메뉴 닫기
+    onClose();
     if (onViewProfile) {
       onViewProfile(memberId);
     }
@@ -59,49 +57,119 @@ const StudyMenu = ({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
+        <TouchableOpacity 
+          style={styles.overlayTouchable} 
+          activeOpacity={1} 
+          onPress={onClose}
+        />
+        
         <View style={styles.menuContainer}>
           <View style={styles.menuHeader}>
-            <Text style={styles.menuTitle}>메뉴</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color="#fff" />
+            <View style={styles.menuHeaderLeft}>
+              <Ionicons name="menu" size={24} color="#fff" style={{ marginRight: 10 }} />
+              <Text style={styles.menuTitle}>메뉴</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <Ionicons name="close" size={28} color="#fff" />
             </TouchableOpacity>
           </View>
-          <ScrollView style={styles.menuBody}>
-            
-            {/* 스터디원 목록 제목 부분 */}
-            <View style={styles.menuSection}>
-              <Text style={styles.sectionTitle}>스터디원 목록</Text>
-              <View style={styles.dropdownIcon}>
-                <Ionicons name="chevron-down-outline" size={20} color="#555" />
-              </View>
-            </View>
-            
-            {/* 멤버 목록을 실제 데이터로 렌더링 */}
-            {members.map((member) => (
+
+          <ScrollView 
+            style={styles.menuBody}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* 스터디원 목록 */}
+            <View style={styles.section}>
               <TouchableOpacity 
-                key={member._id} 
-                style={styles.memberItem}
-                onPress={() => handleViewProfile(member._id)}
+                style={styles.sectionHeader}
+                onPress={() => setIsMemberListExpanded(!isMemberListExpanded)}
               >
-                <Ionicons name="person-circle-outline" size={20} color="#555" />
-                <Text style={styles.memberName}>{member.username}</Text>
+                <View style={styles.sectionTitleRow}>
+                  <Ionicons name="people" size={20} color="#4C63D2" style={{ marginRight: 8 }} />
+                  <Text style={styles.sectionTitle}>스터디원 목록</Text>
+                  <View style={styles.memberCountBadge}>
+                    <Text style={styles.memberCountText}>{members.length}</Text>
+                  </View>
+                </View>
+                <Ionicons 
+                  name={isMemberListExpanded ? "chevron-up" : "chevron-down"} 
+                  size={20} 
+                  color="#4C63D2" 
+                />
               </TouchableOpacity>
-            ))}
-            
-            {/* 호스트 전용 메뉴 */}
+              
+              {isMemberListExpanded && (
+                <View style={styles.memberList}>
+                  {members.map((member) => {
+                    const isMemberHost = member._id === hostId;
+                    return (
+                      <TouchableOpacity 
+                        key={member._id} 
+                        style={styles.memberItem}
+                        onPress={() => handleViewProfile(member._id)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.memberLeft}>
+                          <View style={[styles.memberAvatar, isMemberHost && styles.hostAvatar]}>
+                            <Ionicons 
+                              name={isMemberHost ? "star" : "person"} 
+                              size={18} 
+                              color={isMemberHost ? "#FFD700" : "#4C63D2"} 
+                            />
+                          </View>
+                          <View style={styles.memberInfo}>
+                            <Text style={styles.memberName}>{member.username}</Text>
+                            {isMemberHost && (
+                              <View style={styles.hostBadge}>
+                                <Text style={styles.hostBadgeText}>스터디장</Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                        <Ionicons name="chevron-forward" size={18} color="#999" />
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+
+            {/* 스터디 관리 (호스트만) */}
             {isHost && (
-              <>
-                {/* '스터디 관리' 버튼 */}
-                <TouchableOpacity style={styles.menuItem} onPress={handleManageStudy}>
-                  <Text style={styles.menuItemText}>스터디 관리</Text>
+              <View style={styles.section}>
+                <Text style={styles.sectionSubtitle}>관리</Text>
+                <TouchableOpacity 
+                  style={styles.menuActionItem}
+                  onPress={handleManageStudy}
+                >
+                  <View style={styles.actionLeft}>
+                    <View style={[styles.actionIcon, { backgroundColor: '#E8EAFF' }]}>
+                      <Ionicons name="settings" size={20} color="#4C63D2" />
+                    </View>
+                    <Text style={styles.menuActionText}>스터디 관리</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#999" />
                 </TouchableOpacity>
-              </>
+              </View>
             )}
 
-            {/* 공통 메뉴 */}
-            <TouchableOpacity style={styles.menuItem} onPress={handleLeaveStudy}>
-              <Text style={styles.menuItemText}>스터디 나가기</Text>
-            </TouchableOpacity>
+            {/* 나가기 */}
+            <View style={styles.section}>
+              <TouchableOpacity 
+                style={styles.menuActionItem}
+                onPress={handleLeaveStudy}
+              >
+                <View style={styles.actionLeft}>
+                  <View style={[styles.actionIcon, { backgroundColor: '#FEF2F2' }]}>
+                    <Ionicons name="exit-outline" size={20} color="#FF5B5B" />
+                  </View>
+                  <Text style={[styles.menuActionText, { color: '#FF5B5B' }]}>스터디 나가기</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#999" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ height: 30 }} />
           </ScrollView>
         </View>
       </View>
@@ -116,71 +184,170 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'flex-end',
   },
+  overlayTouchable: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   menuContainer: {
-    width: '70%', 
+    width: '75%',
     height: '100%',
     backgroundColor: '#fff',
+    paddingTop: 50,
   },
   menuHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#001f3f',
-    padding: 15,
+    backgroundColor: '#4C63D2',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  menuHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   menuTitle: {
     color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  closeBtn: {
+    padding: 4,
   },
   menuBody: {
-    padding: 15,
+    flex: 1,
+    paddingTop: 8,
   },
-  menuItem: {
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+  section: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  menuItemText: {
-    fontSize: 16,
-    color: '#333',
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    backgroundColor: '#F8F9FF',
+    borderRadius: 12,
   },
-  menuSection: {
+  sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    flex: 1,
   },
   sectionTitle: {
     fontSize: 16,
-    color: '#333',
-    fontWeight: 'bold',
+    fontWeight: '700',
+    color: '#1a1a1a',
   },
-  dropdownIcon: {
-    marginLeft: 5,
+  sectionSubtitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#999',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    marginLeft: 12,
+  },
+  memberCountBadge: {
+    backgroundColor: '#4C63D2',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  memberCountText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  memberList: {
+    marginTop: 8,
   },
   memberItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    marginLeft: 15,
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+  },
+  memberLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  memberAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E8EAFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  hostAvatar: {
+    backgroundColor: '#FFF9E5',
+  },
+  memberInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   memberName: {
-    marginLeft: 10,
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginRight: 8,
   },
-  acceptButton: {
-    marginLeft: 'auto',
-    backgroundColor: '#00adf5',
-    paddingVertical: 5,
-    paddingHorizontal: 15,
-    borderRadius: 20,
+  hostBadge: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
-  acceptText: {
-    color: '#fff',
+  hostBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#8B6914',
+  },
+  menuActionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+  },
+  actionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  actionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  menuActionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1a1a1a',
   },
 });
 

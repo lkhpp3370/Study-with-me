@@ -1,5 +1,5 @@
 // screens/MapScreen.js
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput,
   Platform, Modal, Pressable, Alert, Linking, FlatList, Animated, PanResponder, Dimensions
@@ -11,8 +11,8 @@ import axios from 'axios';
 import * as Location from 'expo-location'; // ✅ 수정: 정적 import 사용
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback } from 'react';
 import {  BACKEND_URL, KAKAO_JS_KEY } from '../services/api';
+
 
 // 초기 중심: 부경대(대연캠퍼스 인근)
 const DEFAULT_CENTER = { latitude: 35.1335, longitude: 129.105 };

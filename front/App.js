@@ -43,17 +43,6 @@ import PlaceEditRequestScreen from './screens/PlaceEditRequestScreen';
 import BoardDetail from './screens/BoardDetail';
 import StudyManagementScreen from './screens/StudyManagementScreen'; 
 
-// ✅ 검색 결과 화면 (샘플)
-function SearchResultsScreen({ route }) {
-  const { category, gender, field, subField } = route.params || {};
-  return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text>검색 결과 화면</Text>
-      <Text>{category} / {gender} / {field} / {subField}</Text>
-    </View>
-  );
-}
-
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
@@ -72,9 +61,9 @@ function Tabs() {
         },
       })}
     >
-      <Tab.Screen name="출석률" component={AttendanceScreen} options={{ headerShown: false }} />
-      <Tab.Screen name="검색" component={SearchScreen} options={{ headerShown: false }} />
       <Tab.Screen name="홈" component={MainScreen} options={{ headerShown: false }} />
+      <Tab.Screen name="검색" component={SearchScreen} options={{ headerShown: false }} />
+      <Tab.Screen name="출석률" component={AttendanceScreen} options={{ headerShown: false }} />
       {/* ✅ 장소추천 → MapScreen 연결 */}
       <Tab.Screen
         name="장소추천"
@@ -111,7 +100,7 @@ export default function App() {
         <Stack.Screen name="스터디개설" component={CreateStudyScreen} options={{ headerShown: true, title: '스터디 개설' }} />
         <Stack.Screen name="BoardDetail" component={BoardDetail} options={{ headerShown: true, title: '게시글 상세' }} />
         <Stack.Screen name="카테고리검색" component={SearchCategories} options={{ headerShown: true, title: '카테고리 검색' }} />
-        <Stack.Screen name="SearchResults" component={SearchResultsScreen} options={{ headerShown: true, title: '검색 결과' }} />
+        <Stack.Screen name="SearchScreen" component={SearchScreen} options={{ headerShown: true, title: '검색 결과' }} />
         <Stack.Screen name="스터디소개" component={StudyIntroScreen} options={{ headerShown: true, title: '스터디 소개' }} />
         <Stack.Screen name="ReviewScreen" component={ReviewScreen} options={{ headerShown: true, title: '리뷰' }} />
         <Stack.Screen name="CommentScreen" component={CommentScreen} options={{ headerShown: true, title: '댓글' }} />

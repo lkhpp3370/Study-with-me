@@ -1,4 +1,4 @@
-// screens/MainScreen.js
+// front/screens/MainScreen.js (실서버 동작 + 모던 디자인 적용본)
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
@@ -11,16 +11,31 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import api from '../services/api';
 
+/** ---------- 디자인 팔레트 ---------- */
+const COLORS = {
+  primary: '#4F46E5',
+  primaryDark: '#3730A3',
+  bg: '#F8FAFC',
+  card: '#FFFFFF',
+  text: '#0F172A',
+  textLight: '#475569',
+  muted: '#94A3B8',
+  border: '#E2E8F0',
+  study: '#818CF8',
+  routine: '#34D399',
+};
+
 /** ---------- 상수/도우미 ---------- */
 const hours = Array.from({ length: 15 }, (_, i) => i + 8); // 8~22시
 const daysKo = ['월', '화', '수', '목', '금', '토', '일'];
 const koToDow = { '일': 0, '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6 };
 const indexToDow = [1, 2, 3, 4, 5, 6, 0]; // 월~일 순서
-const colors = { study: '#87CEFA', routine: '#90EE90' };
 
-// 화면 너비에 맞춘 요일 칸 폭(시간 라벨 1 + 요일 7 = 8칸)
+// 시간 라벨(50px) + 7일 = 카드 폭 맞춤
 const screenWidth = Dimensions.get('window').width;
-const dayWidth = Math.floor(screenWidth / 8);
+const TIME_LABEL_WIDTH = 50;
+// 🔧 수정: 카드 좌우 마진 16px씩(총 32px)을 고려해 칸 너비 계산
+const dayWidth = Math.floor((screenWidth - 32 - TIME_LABEL_WIDTH) / 7);
 
 // "HH:mm" -> {h, m}
 const parseHHmm = (s) => {
@@ -47,7 +62,7 @@ export default function MainScreen() {
 
   const [userName, setUserName] = useState('');
   const [studyGroups, setStudyGroups] = useState([]);
-  const [schedules, setSchedules] = useState([]); // 서버에서 내려오는 스터디 일정 (원본 그대로)
+  const [schedules, setSchedules] = useState([]); // 서버에서 내려오는 스터디 일정
   const [routinesRaw, setRoutinesRaw] = useState([]);
 
   // 새로고침 상태
@@ -71,7 +86,7 @@ export default function MainScreen() {
 
   /** 뒤로가기 종료 */
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
         Alert.alert("앱 종료", "앱을 종료하시겠습니까?", [
           { text: "취소", style: "cancel" },
@@ -106,24 +121,15 @@ export default function MainScreen() {
   }, []);
 
   // 최초 1회
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  // ✅ 화면 재진입 시마다 자동 새로고침
-  useFocusEffect(
-    useCallback(() => {
-      fetchData();
-    }, [fetchData])
-  );
+  // 화면 재진입 시마다 자동 새로고침
+  useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
-  // ✅ 당겨서 새로고침
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchData();
-  };
+  // 당겨서 새로고침
+  const onRefresh = () => { setRefreshing(true); fetchData(); };
 
-  /** 스터디 일정 → 시간표 포맷 (타임테이블 전용) */
+  /** 스터디 일정 → 시간표 포맷 */
   const studySchedules = useMemo(() => {
     return (schedules || []).map(s => {
       const base = s.startDate ? new Date(s.startDate) : new Date();
@@ -149,13 +155,13 @@ export default function MainScreen() {
     }).filter(Boolean);
   }, [schedules, weekStart]);
 
-  /** 루틴 → 시간표 포맷 (반복/주차 필터, 분 반영) */
+  /** 루틴 → 시간표 포맷 */
   const routines = useMemo(() => {
     return (routinesRaw || []).map(r => {
       const base = r.startDate ? new Date(r.startDate) : (r.createdAt ? new Date(r.createdAt) : new Date());
       const shouldShow = r.repeatWeekly
-        ? isAfterOrSameWeek(weekStart, base)      // 시작 주차 이후만
-        : isSameWeek(weekStart, base);           // 해당 주차에만
+        ? isAfterOrSameWeek(weekStart, base)
+        : isSameWeek(weekStart, base);
       if (!shouldShow) return null;
 
       const { h: sh, m: sm } = parseHHmm(r.startTime);
@@ -172,15 +178,15 @@ export default function MainScreen() {
     }).filter(Boolean);
   }, [routinesRaw, weekStart]);
 
-  /** 합치기(타임테이블 전용) */
+  /** 합치기 */
   const mergedSchedules = useMemo(() => [...studySchedules, ...routines], [studySchedules, routines]);
 
-  /** 주간 라벨 (예: "월\n9/8") */
+  /** 주간 라벨 (요일/날짜) */
   const weekDates = useMemo(() => {
     return indexToDow.map((_, idx) => {
       const d = new Date(weekStart);
       d.setDate(weekStart.getDate() + idx);
-      return `${daysKo[idx]}\n${d.getMonth() + 1}/${d.getDate()}`;
+      return { day: daysKo[idx], date: `${d.getMonth() + 1}/${d.getDate()}` };
     });
   }, [weekStart]);
 
@@ -196,12 +202,8 @@ export default function MainScreen() {
   }, [weekStart]);
 
   /** 주간 이동 */
-  const goPrevWeek = () => setWeekStart(prev => {
-    const d = new Date(prev); d.setDate(d.getDate() - 7); return startOfWeekMon(d);
-  });
-  const goNextWeek = () => setWeekStart(prev => {
-    const d = new Date(prev); d.setDate(d.getDate() + 7); return startOfWeekMon(d);
-  });
+  const goPrevWeek = () => setWeekStart(prev => { const d = new Date(prev); d.setDate(d.getDate() - 7); return startOfWeekMon(d); });
+  const goNextWeek = () => setWeekStart(prev => { const d = new Date(prev); d.setDate(d.getDate() + 7); return startOfWeekMon(d); });
 
   /** 루틴 저장(다중 요일 → 다중 생성) */
   const handleAddRoutine = async () => {
@@ -220,7 +222,7 @@ export default function MainScreen() {
           startTime: hourToHHmm(newRoutine.startHour),
           endTime:   hourToHHmm(newRoutine.endHour),
           repeatWeekly: newRoutine.repeatWeekly,
-          color: colors.routine,
+          color: COLORS.routine,
         };
         const res = await api.post('/routine', payload);
         return res.data;
@@ -248,193 +250,166 @@ export default function MainScreen() {
     ]);
   };
 
-  /** ✅ 이번 주 "카드용" 원본 일정 목록 (날짜/요일/시간/개최자 표시용) */
-  const weeklyScheduleCards = useMemo(() => {
-    const dayNamesShort = ['일','월','화','수','목','금','토'];
-
-    return (schedules || [])
-      .map(s => {
-        const base = s.startDate ? new Date(s.startDate) : new Date();
-
-        const shouldShow = s.repeatWeekly
-          ? isAfterOrSameWeek(weekStart, base)
-          : isSameWeek(weekStart, base);
-        if (!shouldShow) return null;
-
-        // 이번 주의 실제 발생 날짜
-        let occurDate;
-        if (s.repeatWeekly) {
-          const offset = (s.dayOfWeek + 6) % 7; // 월=0, ... 일=6 기준
-          occurDate = new Date(weekStart);
-          occurDate.setDate(weekStart.getDate() + offset);
-        } else {
-          occurDate = new Date(s.startDate);
-        }
-
-        const hostName = typeof s.createdBy === 'object' && s.createdBy
-          ? s.createdBy.username
-          : undefined;
-
-        return {
-          _id: s._id,
-          studyTitle: s.study?.title || '스터디',
-          title: s.title,
-          description: s.description,
-          occurDate,
-          dayLabel: dayNamesShort[s.dayOfWeek],
-          startTime: s.startTime,
-          endTime: s.endTime,
-          location: s.location || '장소 미정',
-          hostName: hostName || '알 수 없음',
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.occurDate - b.occurDate || String(a.startTime).localeCompare(String(b.startTime)));
-  }, [schedules, weekStart]);
-
   /** 렌더 */
   return (
     <View style={styles.container}>
-      {/* 상단바 (프로필 버튼 유지) */}
+      {/* 헤더 */}
       <View style={styles.header}>
-        <Ionicons name="notifications" size={20} color="white" onPress={() => navigation.navigate('알림내역')} />
         <TouchableOpacity onPress={() => navigation.navigate('내 프로필')}>
           <Text style={styles.username}>{userName || 'user_name'}</Text>
         </TouchableOpacity>
-      </View>
-
-      {/* 주간 전환 + 범위 표시(탭하면 주 선택) */}
-      <View style={styles.weekSwitcher}>
-        <TouchableOpacity onPress={goPrevWeek} style={styles.weekBtn}>
-          <Ionicons name="chevron-back" size={18} />
-          <Text>이전 주</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => setShowWeekPicker(true)}>
-          <Text style={styles.weekTitle}>{weekRangeText}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={goNextWeek} style={styles.weekBtn}>
-          <Text>다음 주</Text>
-          <Ionicons name="chevron-forward" size={18} />
+        <TouchableOpacity onPress={() => navigation.navigate('알림내역')} style={styles.bellButton}>
+          <Ionicons name="notifications-outline" size={24} color={COLORS.text} />
         </TouchableOpacity>
       </View>
 
-      {/* 주 선택 DatePicker */}
-      {showWeekPicker && (
-        <DateTimePicker
-          value={weekStart}
-          mode="date"
-          onChange={(e, date) => {
-            if (Platform.OS !== 'ios') setShowWeekPicker(false);
-            if (date) setWeekStart(startOfWeekMon(date));
-          }}
-        />
-      )}
-
-      {/* 시간표 + 스터디 목록을 한 스크롤로 묶기 */}
+      {/* 본문 */}
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* 시간표 상단 좌측 교차점 + 버튼 + 요일 라벨 */}
-        <View style={styles.timetableHeaderRow}>
-          <View style={[styles.timeCell, { width: dayWidth }]}>
+        {/* 주간 선택 카드 */}
+        <View style={styles.weekCard}>
+          <TouchableOpacity onPress={goPrevWeek} style={styles.weekArrow}>
+            <Ionicons name="chevron-back" size={20} color={COLORS.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowWeekPicker(true)} style={styles.weekCenter}>
+            <Text style={styles.weekText}>{weekRangeText}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={goNextWeek} style={styles.weekArrow}>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.primary} />
+          </TouchableOpacity>
+        </View>
+
+        {showWeekPicker && (
+          <DateTimePicker
+            value={weekStart}
+            mode="date"
+            onChange={(e, date) => {
+              if (Platform.OS !== 'ios') setShowWeekPicker(false);
+              if (date) setWeekStart(startOfWeekMon(date));
+            }}
+          />
+        )}
+
+        {/* 시간표 카드 */}
+        <View style={styles.timetableCard}>
+          {/* 요일 헤더 + 루틴 추가 버튼 */}
+          <View style={styles.timetableHeader}>
             <TouchableOpacity style={styles.addRoutineBtn} onPress={() => setRoutineModalVisible(true)}>
-              <Ionicons name="add" size={18} color="white" />
+              <Ionicons name="add" size={16} color="#fff" />
             </TouchableOpacity>
+            {weekDates.map((item, i) => (
+              <View key={i} style={[styles.dayHeader, { width: dayWidth }]}>
+                <Text style={styles.dayText}>{item.day}</Text>
+                <Text style={styles.dateText}>{item.date}</Text>
+              </View>
+            ))}
           </View>
-          {weekDates.map((label, i) => (
-            <View key={i} style={[styles.dayCell, { width: dayWidth }]}>
-              <Text style={{ textAlign: 'center' }}>{label}</Text>
+
+          {/* 시간표 본문 */}
+          {hours.map((hour) => (
+            <View key={hour} style={styles.timeRow}>
+              <View style={styles.timeLabel}>
+                <Text style={styles.timeLabelText}>{hour}</Text>
+              </View>
+
+              {indexToDow.map((dow, i) => {
+                const overlapping = mergedSchedules.filter(s =>
+                  koToDow[s.day] === dow &&
+                  s.start < hour + 1 &&
+                  s.end > hour
+                );
+
+                if (overlapping.length === 0) {
+                  return <View key={i} style={[styles.cell, { width: dayWidth }]} />;
+                }
+
+                const item = overlapping[0];
+                const backgroundColor = item.type === 'study' ? COLORS.study : COLORS.routine;
+
+                return (
+                  <TouchableOpacity
+                    key={i}
+                    onPress={() => item.type === 'study'
+                      ? navigation.navigate('Studyroommain', { studyId: item.study._id, studyName: item.study.title })
+                      : handleDeleteRoutine(item._id)}
+                    style={[styles.cell, styles.cellFilled, { width: dayWidth, backgroundColor }]}
+                  >
+                    <Text style={styles.cellText} numberOfLines={2}>{item.title}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           ))}
         </View>
 
-        {/* 본문(각 시간 행) */}
-        {hours.map((hour) => (
-          <View key={hour} style={styles.row}>
-            {/* 시간 라벨 */}
-            <View style={[styles.timeCell, { width: dayWidth }]}>
-              <Text>{hour}:00</Text>
-            </View>
-
-            {/* 7일 칸 */}
-            {indexToDow.map((dow, i) => {
-              // 셀 병합 ❌ → "그 시간대와 겹치면" 칠하기
-              const overlapping = mergedSchedules.filter(s =>
-                koToDow[s.day] === dow &&
-                s.start < hour + 1 && 
-                s.end > hour
-              );
-
-              if (overlapping.length === 0) {
-                return <View key={i} style={[styles.cell, { width: dayWidth }]} />;
-              }
-
-              const item = overlapping[0];
-              const backgroundColor = item.type === 'study' ? colors.study : colors.routine;
-
-              return (
-                <TouchableOpacity
-                  key={i}
-                  onPress={() => item.type === 'study'
-                    ? navigation.navigate('Studyroommain', { studyId: item.study._id, studyName: item.study.title })
-                    : handleDeleteRoutine(item._id)}
-                  style={[styles.cell, { width: dayWidth, backgroundColor, justifyContent: 'center', alignItems: 'center', paddingHorizontal:2 }]}
-                >
-                  <Text style={{ fontSize: 11, textAlign: 'center' }} numberOfLines={2}>{item.title}</Text>
-                </TouchableOpacity>
-              );
-            })}
+        {/* 이번 주 스터디 일정 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="calendar" size={20} color={COLORS.primary} />
+            <Text style={styles.sectionTitle}>이번 주 스터디 일정</Text>
           </View>
-        ))}
-
-        {/* ✅ 이번 주 스터디 일정 카드 목록 (원본 기반) */}
-        <Text style={styles.sectionTitle}>이번 주 스터디 일정</Text>
-        <View style={styles.studyList}>
-          {weeklyScheduleCards.length === 0 ? (
-            <Text style={styles.emptyText}>이번 주 스터디 일정이 없습니다</Text>
+          {studySchedules.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Ionicons name="calendar-outline" size={32} color={COLORS.muted} />
+              <Text style={styles.emptyText}>이번 주 스터디 일정이 없습니다</Text>
+            </View>
           ) : (
-            weeklyScheduleCards.map((s) => (
-              <View key={s._id} style={styles.scheduleItem}>
-                <Text style={styles.scheduleTitle}>[{s.studyTitle}] {s.title}</Text>
-
-                <Text style={styles.scheduleInfo}>
-                  📅 {s.occurDate.toLocaleDateString('ko-KR')} ({s.dayLabel})
-                </Text>
-
-                {s.description && (
-                  <Text style={styles.scheduleDesc}>📝 {s.description}</Text>
-                )}
-
-                <Text style={styles.scheduleInfo}>🕒 {s.startTime} ~ {s.endTime}</Text>
-                <Text style={styles.scheduleInfo}>📍 {s.location}</Text>
-                <Text style={styles.scheduleInfo}>👤 개최자: {s.hostName}</Text>
+            studySchedules.map((s) => (
+              <View key={s._id} style={styles.scheduleCard}>
+                <View style={styles.scheduleLeft}>
+                  <View style={styles.scheduleIcon}>
+                    <Ionicons name="book" size={20} color={COLORS.study} />
+                  </View>
+                  <View style={styles.scheduleInfo}>
+                    <Text style={styles.scheduleTitle}>{s.title}</Text>
+                    <Text style={styles.scheduleDetail}>
+                      <Ionicons name="location" size={12} /> {s.location || '장소 미정'}
+                    </Text>
+                    <Text style={styles.scheduleDetail}>
+                      <Ionicons name="time" size={12} /> {Math.floor(s.start)}:00 ~ {Math.floor(s.end)}:00
+                    </Text>
+                    {!!s.description && (
+                      <Text style={[styles.scheduleDetail, { marginTop: 2 }]} numberOfLines={2}>
+                        {s.description}
+                      </Text>
+                    )}
+                  </View>
+                </View>
               </View>
             ))
           )}
         </View>
 
-        {/* 스터디 목록 */}
-        <Text style={styles.sectionTitle}>내 스터디 그룹 목록</Text>
-        <View style={styles.studyList}>
+        {/* 스터디 그룹 목록 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="people" size={20} color={COLORS.primary} />
+            <Text style={styles.sectionTitle}>내 스터디 그룹</Text>
+          </View>
           {studyGroups.length === 0 ? (
-            <Text style={styles.emptyText}>가입중인 스터디가 없습니다</Text>
+            <View style={styles.emptyCard}>
+              <Ionicons name="people-outline" size={32} color={COLORS.muted} />
+              <Text style={styles.emptyText}>가입중인 스터디가 없습니다</Text>
+            </View>
           ) : (
             studyGroups.map((study) => (
               <TouchableOpacity
                 key={study._id}
-                style={styles.studyItem}
-                onPress={() =>
-                  navigation.navigate('Studyroommain', {
-                    studyId: study._id,
-                    studyName: study.title,
-                  })
-                }
+                style={styles.studyCard}
+                onPress={() => navigation.navigate('Studyroommain', { studyId: study._id, studyName: study.title })}
+                activeOpacity={0.7}
               >
-                <Text style={styles.studyTitle}>{study.title}</Text>
-                <Text style={styles.studyDesc}>{study.description}</Text>
+                <View style={styles.studyIcon}>
+                  <Ionicons name="book" size={22} color={COLORS.primary} />
+                </View>
+                <View style={styles.studyInfo}>
+                  <Text style={styles.studyTitle}>{study.title}</Text>
+                  <Text style={styles.studyDesc} numberOfLines={2}>{study.description}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={COLORS.muted} />
               </TouchableOpacity>
             ))
           )}
@@ -442,14 +417,15 @@ export default function MainScreen() {
       </ScrollView>
 
       {/* 채팅 FAB */}
-      <TouchableOpacity style={styles.chatFab} onPress={() => navigation.navigate('채팅목록')}>
+      <TouchableOpacity style={styles.chatFab} onPress={() => navigation.navigate('채팅목록')} activeOpacity={0.8}>
         <Ionicons name="chatbubble-ellipses" size={24} color="white" />
       </TouchableOpacity>
 
       {/* 루틴 추가 모달 */}
       <Modal visible={routineModalVisible} transparent animationType="slide">
-        <View style={styles.modalContainer}>
+        <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>개인 루틴 추가</Text>
 
             <Text style={styles.label}>일정명</Text>
@@ -458,14 +434,15 @@ export default function MainScreen() {
               onChangeText={(t) => setNewRoutine({ ...newRoutine, title: t })}
               style={styles.input}
               placeholder="예: 헬스장"
+              placeholderTextColor={COLORS.muted}
             />
 
             {/* 시작일(주차 기준) */}
-            <Text style={styles.label}>시작일 (해당 주부터 표시)</Text>
-            <TouchableOpacity style={styles.dateBtn} onPress={() => setShowStartDatePicker(true)}>
-              <Ionicons name="calendar" size={16} />
-              <Text style={{ marginLeft: 6 }}>
-                {`${newRoutine.startDate.getFullYear()}/${newRoutine.startDate.getMonth() + 1}/${newRoutine.startDate.getDate()}`}
+            <Text style={styles.label}>시작일</Text>
+            <TouchableOpacity style={styles.dateButton} onPress={() => setShowStartDatePicker(true)}>
+              <Ionicons name="calendar-outline" size={18} color={COLORS.primary} />
+              <Text style={styles.dateButtonText}>
+                {`${newRoutine.startDate.getFullYear()}년 ${newRoutine.startDate.getMonth() + 1}월 ${newRoutine.startDate.getDate()}일`}
               </Text>
             </TouchableOpacity>
             {showStartDatePicker && (
@@ -479,9 +456,9 @@ export default function MainScreen() {
               />
             )}
 
-            {/* 요일 (다중) */}
+            {/* 요일 (다중 선택) */}
             <Text style={styles.label}>요일 (복수 선택 가능)</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.dayGrid}>
               {daysKo.map(day => {
                 const selected = newRoutine.days.includes(day);
                 return (
@@ -493,54 +470,58 @@ export default function MainScreen() {
                         days: selected ? prev.days.filter(d => d !== day) : [...prev.days, day]
                       }));
                     }}
-                    style={[styles.dayBtn, selected && styles.dayBtnActive]}
+                    style={[styles.dayButton, selected && styles.dayButtonSelected]}
                   >
-                    <Text style={{ color: selected ? 'white' : 'black' }}>{day}</Text>
+                    <Text style={[styles.dayButtonText, selected && styles.dayButtonTextSelected]}>{day}</Text>
                   </TouchableOpacity>
                 );
               })}
-            </ScrollView>
+            </View>
 
-            {/* 시간 */}
-            <View style={styles.timeRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.label}>시작 시간</Text>
+            {/* 시간 입력 */}
+            <View style={styles.timeInputRow}>
+              <View style={styles.timeInputGroup}>
+                <Text style={styles.label}>시작</Text>
                 <TextInput
                   keyboardType="numeric"
                   value={String(newRoutine.startHour)}
-                  onChangeText={(t) => setNewRoutine({ ...prev, startHour: parseInt(t || '0', 10) })}
-                  style={styles.input}
-                  placeholder="예: 8"
+                  onChangeText={(t) => setNewRoutine({ ...newRoutine, startHour: parseInt(t || '0', 10) })}
+                  style={styles.timeInput}
+                  placeholder="8"
+                  placeholderTextColor={COLORS.muted}
                 />
               </View>
-              <View style={{ width: 12 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.label}>종료 시간</Text>
+              <View style={styles.timeInputGroup}>
+                <Text style={styles.label}>종료</Text>
                 <TextInput
                   keyboardType="numeric"
                   value={String(newRoutine.endHour)}
-                  onChangeText={(t) => setNewRoutine({ ...prev, endHour: parseInt(t || '0', 10) })}
-                  style={styles.input}
-                  placeholder="예: 10"
+                  onChangeText={(t) => setNewRoutine({ ...newRoutine, endHour: parseInt(t || '0', 10) })}
+                  style={styles.timeInput}
+                  placeholder="10"
+                  placeholderTextColor={COLORS.muted}
                 />
               </View>
             </View>
 
-            {/* 반복 */}
+            {/* 반복 스위치 */}
             <View style={styles.switchRow}>
               <Text style={styles.label}>매주 반복</Text>
               <Switch
                 value={newRoutine.repeatWeekly}
                 onValueChange={(v) => setNewRoutine({ ...newRoutine, repeatWeekly: v })}
+                trackColor={{ false: COLORS.border, true: COLORS.primaryDark }}
+                thumbColor={newRoutine.repeatWeekly ? COLORS.primary : '#f4f3f4'}
               />
             </View>
 
+            {/* 액션 버튼 */}
             <View style={styles.modalActions}>
-              <TouchableOpacity onPress={() => setRoutineModalVisible(false)} style={styles.cancelBtn}>
-                <Text style={styles.cancelText}>취소</Text>
+              <TouchableOpacity onPress={() => setRoutineModalVisible(false)} style={styles.modalCancelBtn}>
+                <Text style={styles.modalCancelText}>취소</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleAddRoutine} style={styles.saveBtn}>
-                <Text style={styles.saveText}>저장</Text>
+              <TouchableOpacity onPress={handleAddRoutine} style={styles.modalSaveBtn}>
+                <Text style={styles.modalSaveText}>저장</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -552,100 +533,127 @@ export default function MainScreen() {
 
 /** ---------- 스타일 ---------- */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f6f7', paddingTop: 35 },
+  container: { flex: 1, backgroundColor: COLORS.bg },
 
   header: {
-    height: 50,
-    backgroundColor: '#001f3f',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingTop: 50, paddingBottom: 16, backgroundColor: COLORS.card,
   },
-  username: { color: 'white', fontSize: 16 },
+  username: { fontSize: 20, fontWeight: '700', color: COLORS.text },
+  bellButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
 
-  weekSwitcher: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 8
+  scrollContent: { paddingBottom: 100 },
+
+  weekCard: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginHorizontal: 16, marginTop: 16, marginBottom: 12,
+    paddingHorizontal: 12, paddingVertical: 12, backgroundColor: COLORS.card,
+    borderRadius: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
   },
-  weekBtn: { flexDirection: 'row', alignItems: 'center', padding: 6, borderRadius: 8, backgroundColor: '#eee' },
-  weekTitle: { fontWeight: '600' },
+  weekArrow: { padding: 8 },
+  weekCenter: { flex: 1, alignItems: 'center' },
+  weekText: { fontSize: 16, fontWeight: '700', color: COLORS.text },
 
-  timetableHeaderRow: { flexDirection: 'row', marginTop: 6 },
-  row: { flexDirection: 'row' },
-  timeCell: { justifyContent: 'center', alignItems: 'center', borderWidth: 0.5, borderColor: '#ccc', height: 44 },
-  dayCell: { height: 44, justifyContent: 'center', alignItems: 'center', backgroundColor: '#ddd', borderWidth: 0.5, borderColor: '#bbb' },
-  cell: { height: 40, borderWidth: 0.5, borderColor: '#ccc' },
-
+  timetableCard: {
+    marginHorizontal: 16, marginBottom: 16, backgroundColor: COLORS.card,
+    borderRadius: 16, overflow: 'hidden', shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3,
+  },
+  timetableHeader: { flexDirection: 'row', backgroundColor: COLORS.bg, paddingVertical: 8 },
   addRoutineBtn: {
-    backgroundColor: '#00aaff',
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center'
+    width: TIME_LABEL_WIDTH, height: 50, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.primary, margin: 4, borderRadius: 12
   },
+  dayHeader: { alignItems: 'center', justifyContent: 'center', paddingVertical: 8,
+    marginLeft:-1,
+   },
+  dayText: { fontSize: 13, fontWeight: '700', color: COLORS.text, marginBottom: 2 },
+  dateText: { fontSize: 11, color: COLORS.muted },
 
-  sectionTitle: { marginLeft: 16, marginTop: 12, fontWeight: 'bold', fontSize: 16 },
-  studyList: { paddingHorizontal: 16, paddingTop: 8 },
-  studyItem: { backgroundColor: 'white', padding: 12, borderRadius: 8, marginBottom: 8 },
-  studyTitle: { fontSize: 16, fontWeight: 'bold' },
-  studyDesc: { fontSize: 13, color: '#555' },
+  timeRow: { flexDirection: 'row', borderTopWidth: 0.5, borderTopColor: COLORS.border },
+  timeLabel: { width: TIME_LABEL_WIDTH, height: 32, alignItems: 'center', justifyContent: 'center' },
+  timeLabelText: { fontSize: 11, color: COLORS.textLight, fontWeight: '600' },
+  cell: { height: 32, borderLeftWidth: 0.5, borderLeftColor: COLORS.border },
+  cellFilled: { alignItems: 'center', justifyContent: 'center', padding: 2 },
+  cellText: { fontSize: 9, color: '#fff', fontWeight: '600', textAlign: 'center' },
 
-  emptyText: { color: '#aaa', textAlign: 'center', marginTop: 16 },
+  section: { marginHorizontal: 16, marginBottom: 16 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text },
+
+  emptyCard: {
+    backgroundColor: COLORS.card, borderRadius: 16, padding: 40, alignItems: 'center',
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  emptyText: { marginTop: 8, color: COLORS.muted },
+
+  scheduleCard: {
+    backgroundColor: COLORS.card, borderRadius: 14, padding: 12, marginBottom: 10,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  scheduleLeft: { flexDirection: 'row', alignItems: 'center' },
+  scheduleIcon: {
+    width: 36, height: 36, borderRadius: 10, backgroundColor: '#EEF2FF',
+    alignItems: 'center', justifyContent: 'center', marginRight: 10,
+  },
+  scheduleInfo: { flex: 1 },
+  scheduleTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  scheduleDetail: { fontSize: 12, color: COLORS.textLight, marginTop: 2 },
+
+  studyCard: {
+    backgroundColor: COLORS.card, borderRadius: 14, padding: 12, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border,
+  },
+  studyIcon: {
+    width: 40, height: 40, borderRadius: 12, backgroundColor: '#EEF2FF',
+    alignItems: 'center', justifyContent: 'center', marginRight: 12,
+  },
+  studyInfo: { flex: 1 },
+  studyTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  studyDesc: { fontSize: 12, color: COLORS.textLight, marginTop: 2 },
 
   chatFab: {
-    position: 'absolute',
-    right: 16,
-    bottom: 16,
-    backgroundColor: '#00aaff',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 5
+    position: 'absolute', right: 16, bottom: 16, backgroundColor: COLORS.primary,
+    width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 5,
   },
 
-  modalContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
-  modalContent: { backgroundColor: 'white', padding: 18, borderRadius: 12, width: '86%' },
-  modalTitle: { fontSize: 16, fontWeight: '600', marginBottom: 10 },
-
-  label: { marginTop: 8, marginBottom: 4, fontSize: 13, color: '#333' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 6, padding: 8, marginVertical: 4 },
-  dateBtn: {
-    flexDirection: 'row', alignItems: 'center',
-    borderWidth: 1, borderColor: '#ccc',
-    borderRadius: 6, paddingVertical: 8, paddingHorizontal: 10, marginBottom: 6
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: {
+    backgroundColor: COLORS.card, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24,
   },
-  dayBtn: {
-    paddingVertical: 8, paddingHorizontal: 10,
-    borderWidth: 1, borderColor: '#ccc',
-    borderRadius: 6, marginRight: 6, marginVertical: 6
+  modalHandle: { width: 40, height: 4, backgroundColor: COLORS.border, borderRadius: 2, alignSelf: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
+
+  label: { marginTop: 10, marginBottom: 6, fontSize: 13, color: COLORS.text },
+  input: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, padding: 10, backgroundColor: '#F9FAFB' },
+
+  dateButton: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#F9FAFB',
   },
-  dayBtnActive: { backgroundColor: '#00aaff', borderColor: '#00aaff' },
+  dateButtonText: { color: COLORS.text },
 
-  timeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
-
-  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 },
-  cancelBtn: { paddingVertical: 10, paddingHorizontal: 14, backgroundColor: '#eee', borderRadius: 8, marginRight: 8 },
-  cancelText: { color: '#333', fontWeight: '600' },
-  saveBtn: { paddingVertical: 10, paddingHorizontal: 16, backgroundColor: '#00aaff', borderRadius: 8 },
-  saveText: { color: 'white', fontWeight: '700' },
-
-  scheduleItem: {
-    backgroundColor: 'white',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 0.5,
-    borderColor: '#ccc',
+  dayGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  dayButton: {
+    paddingVertical: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: 10, backgroundColor: COLORS.card,
   },
-  scheduleTitle: { fontSize: 15, fontWeight: 'bold' },
-  scheduleInfo: { fontSize: 13, color: '#333', marginTop: 2 },
-  scheduleDesc: { fontSize: 12, color: '#555', marginTop: 2 },
+  dayButtonSelected: { backgroundColor: '#EEF2FF', borderColor: COLORS.primary },
+  dayButtonText: { color: COLORS.text },
+  dayButtonTextSelected: { color: COLORS.primary, fontWeight: '700' },
+
+  timeInputRow: { flexDirection: 'row', gap: 12 },
+  timeInputGroup: { flex: 1 },
+  timeInput: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, padding: 10, backgroundColor: '#F9FAFB' },
+
+  switchRow: { marginTop: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 14 },
+  modalCancelBtn: { paddingVertical: 10, paddingHorizontal: 14, backgroundColor: '#EEF2FF', borderRadius: 10 },
+  modalCancelText: { color: COLORS.primaryDark, fontWeight: '700' },
+  modalSaveBtn: { paddingVertical: 10, paddingHorizontal: 16, backgroundColor: COLORS.primary, borderRadius: 10 },
+  modalSaveText: { color: '#fff', fontWeight: '700' },
 });
