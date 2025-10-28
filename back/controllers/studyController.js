@@ -16,6 +16,11 @@ exports.createStudy = async (req, res) => {
       return res.status(400).json({ message: '필수 항목이 누락되었습니다.' });
     }
 
+    const exists = await Study.exists({ title: title.trim() });
+    if (exists) {
+      return res.status(409).json({ message: '이미 존재하는 스터디 이름입니다.' });
+    }
+    
     // 스터디 생성
     const newStudy = new Study({
       title,
@@ -38,16 +43,6 @@ exports.createStudy = async (req, res) => {
         studyId: newStudy._id,
         members: [host],
       }).save();
-
-      const notice = await new Message({
-        chatRoomId: chatRoom._id,
-        sender: host,
-        type: 'notice',
-        content: `[${title}] 스터디 채팅방이 생성되었습니다.`,
-      }).save();
-
-      chatRoom.noticeMessageId = notice._id;
-      await chatRoom.save();
     }
 
     res.status(201).json({
@@ -173,5 +168,19 @@ exports.delegateHost = async (req, res) => {
   } catch (err) {
     console.error('❌ 스터디장 위임 실패:', err);
     res.status(500).json({ message: '방장 위임 실패', error: err.message });
+  }
+};
+
+exports.checkTitleDuplicate = async (req, res) => {
+  try {
+    const { title } = req.query;
+    if (!title || !title.trim()) {
+      return res.status(400).json({ message: 'title 쿼리 파라미터가 필요합니다.' });
+    }
+    const exists = await Study.exists({ title: title.trim() });
+    return res.json({ available: !exists });
+  } catch (err) {
+    console.error('❌ 스터디 이름 중복 확인 실패:', err);
+    return res.status(500).json({ message: '중복 확인 실패', error: err.message });
   }
 };

@@ -33,6 +33,8 @@ const userSchema = new mongoose.Schema(
       major: Boolean,
       grade: Boolean,
     },
+    resetCode: { type: String, default: null },
+    resetCodeExpires: { type: Date, default: null },
     chatNotificationPreferences: {
       type: Map,
       of: Boolean,
