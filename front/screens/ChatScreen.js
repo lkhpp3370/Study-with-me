@@ -356,9 +356,6 @@ export default function ChatScreen() {
         <TouchableOpacity onPress={pickAndSendImage} style={styles.iconBtn}>
           <Ionicons name="image-outline" size={22} color="#007aff" />
         </TouchableOpacity>
-        <TouchableOpacity onPress={sendFileMessage} style={styles.iconBtn}>
-          <Ionicons name="document-attach-outline" size={22} color="#007aff" />
-        </TouchableOpacity>
         <TextInput
           style={styles.input}
           placeholder="메시지를 입력하세요"
@@ -401,5 +398,6 @@ const styles = StyleSheet.create({
   input: { flex: 1, backgroundColor: '#f1f1f1', borderRadius: 20, paddingHorizontal: 12, fontSize: 15 },
   sendBtn: { marginLeft: 6, backgroundColor: '#007aff', borderRadius: 20, padding: 8 },
 });
+
 
 
