@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, StyleSheet, 
   KeyboardAvoidingView, Platform, ScrollView, Keyboard, 
-  Alert, ActivityIndicator 
+  Alert, ActivityIndicator, SafeAreaView 
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -83,74 +83,90 @@ const BoardWrite = ({ route }) => {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        {/* 헤더 */}
         <View style={styles.headerContainer}>
-          <Text style={styles.headerTitle}>{studyName || 'Study'}</Text>
-          <TouchableOpacity onPress={handleBack}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
             <Icon name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
+          <Text style={styles.headerTitle}>{studyName || 'Study'}</Text>
+          <View style={{ width: 24 }} />
         </View>
 
-        <View style={styles.container}>
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>제목 *</Text>
-            <TextInput
-              style={styles.titleInput}
-              placeholder="제목을 입력하세요"
-              value={title}
-              onChangeText={setTitle}
-              maxLength={100}
-              editable={!isSubmitting}
-            />
-            <Text style={styles.charCount}>{title.length}/100</Text>
-          </View>
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.container}>
+            {/* 제목 */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>제목 *</Text>
+              <TextInput
+                style={styles.titleInput}
+                placeholder="제목을 입력하세요"
+                placeholderTextColor="#999"
+                value={title}
+                onChangeText={setTitle}
+                maxLength={100}
+                editable={!isSubmitting}
+              />
+              <Text style={styles.charCount}>{title.length}/100</Text>
+            </View>
 
-          <View style={styles.categoryContainer}>
-            <Text style={styles.label}>분류 *</Text>
-            <View style={styles.categoryTabs}>
-              {categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat.key}
-                  style={[
-                    styles.categoryTab,
-                    selectedCategory === cat.key && styles.activeCategoryTab,
-                  ]}
-                  onPress={() => setSelectedCategory(cat.key)}
-                  disabled={isSubmitting}
-                >
-                  <Text
+            {/* 분류 */}
+            <View style={styles.categoryContainer}>
+              <Text style={styles.label}>분류 *</Text>
+              <View style={styles.categoryTabs}>
+                {categories.map((cat) => (
+                  <TouchableOpacity
+                    key={cat.key}
                     style={[
-                      styles.categoryText,
-                      selectedCategory === cat.key && styles.activeCategoryText,
+                      styles.categoryTab,
+                      selectedCategory === cat.key && styles.activeCategoryTab,
                     ]}
+                    onPress={() => setSelectedCategory(cat.key)}
+                    disabled={isSubmitting}
                   >
-                    {cat.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.categoryText,
+                        selectedCategory === cat.key && styles.activeCategoryText,
+                      ]}
+                    >
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* 내용 */}
+            <View style={styles.contentContainer}>
+              <Text style={styles.label}>내용 *</Text>
+              <TextInput
+                style={styles.contentInput}
+                placeholder="내용을 입력하세요"
+                placeholderTextColor="#999"
+                value={content}
+                onChangeText={setContent}
+                multiline
+                textAlignVertical="top"
+                maxLength={5000}
+                editable={!isSubmitting}
+              />
+              <Text style={styles.charCount}>{content.length}/5000</Text>
             </View>
           </View>
+        </ScrollView>
 
-          <View style={styles.contentContainer}>
-            <Text style={styles.label}>내용 *</Text>
-            <TextInput
-              style={styles.contentInput}
-              placeholder="내용을 입력하세요"
-              value={content}
-              onChangeText={setContent}
-              multiline
-              textAlignVertical="top"
-              maxLength={5000}
-              editable={!isSubmitting}
-            />
-            <Text style={styles.charCount}>{content.length}/5000</Text>
-          </View>
-
+        {/* 저장 버튼 - 하단 고정 */}
+        <View style={styles.bottomContainer}>
           <TouchableOpacity
             style={[styles.saveButton, isSubmitting && styles.saveButtonDisabled]}
             onPress={handleSave}
@@ -166,67 +182,142 @@ const BoardWrite = ({ route }) => {
             )}
           </TouchableOpacity>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  scrollContainer: { flexGrow: 1 },
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#3949AB', // 인디고 헤더
+  },
   headerContainer: {
-    backgroundColor: '#0d2b40',
-    paddingVertical: 20,
-    paddingHorizontal: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: '#3949AB', // 인디고
   },
-  headerTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  container: { flex: 1, padding: 16 },
-  inputContainer: { marginVertical: 10 },
-  label: { fontSize: 16, fontWeight: 'bold', marginBottom: 8, color: '#333' },
+  backButton: {
+    padding: 4,
+  },
+  headerTitle: { 
+    color: '#fff', 
+    fontSize: 18, 
+    fontWeight: '700',
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  scrollContainer: { 
+    flexGrow: 1,
+    paddingBottom: 20,
+  },
+  container: { 
+    flex: 1, 
+    padding: 20,
+  },
+  inputContainer: { 
+    marginBottom: 24,
+  },
+  label: { 
+    fontSize: 15, 
+    fontWeight: '600', 
+    marginBottom: 10, 
+    color: '#1a1a1a',
+  },
   titleInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
+    borderColor: '#e0e0e0',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 15,
     backgroundColor: '#fff',
+    color: '#1a1a1a',
   },
-  charCount: { textAlign: 'right', fontSize: 12, color: '#666', marginTop: 4 },
-  categoryContainer: { marginVertical: 10 },
-  categoryTabs: { flexDirection: 'row', marginTop: 4, gap: 8 },
+  charCount: { 
+    textAlign: 'right', 
+    fontSize: 12, 
+    color: '#7986CB', // 연한 인디고
+    marginTop: 6,
+  },
+  categoryContainer: { 
+    marginBottom: 24,
+  },
+  categoryTabs: { 
+    flexDirection: 'row', 
+    gap: 10,
+  },
   categoryTab: {
     paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 24,
+    backgroundColor: '#E8EAF6', // 아주 연한 인디고
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#C5CAE9', // 연한 인디고 테두리
   },
-  activeCategoryTab: { backgroundColor: '#0d2b40', borderColor: '#0d2b40' },
-  categoryText: { color: '#666', fontSize: 14, fontWeight: '500' },
-  activeCategoryText: { color: '#fff' },
-  contentContainer: { marginVertical: 10, flex: 1 },
+  activeCategoryTab: { 
+    backgroundColor: '#3949AB', // 인디고
+    borderColor: '#3949AB',
+  },
+  categoryText: { 
+    color: '#5C6BC0', // 중간 인디고
+    fontSize: 14, 
+    fontWeight: '500',
+  },
+  activeCategoryText: { 
+    color: '#fff',
+    fontWeight: '600',
+  },
+  contentContainer: { 
+    flex: 1,
+    marginBottom: 24,
+  },
   contentInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    minHeight: 200,
+    borderColor: '#e0e0e0',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 15,
+    minHeight: 240,
     backgroundColor: '#fff',
+    color: '#1a1a1a',
+  },
+  bottomContainer: {
+    padding: 20,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 20,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e5e5',
   },
   saveButton: {
-    backgroundColor: '#0d2b40',
+    backgroundColor: '#3949AB', // 인디고
     paddingVertical: 16,
     alignItems: 'center',
-    borderRadius: 8,
-    marginTop: 20,
+    borderRadius: 12,
+    shadowColor: '#3949AB',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  saveButtonDisabled: { backgroundColor: '#999' },
-  saveButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  loadingContainer: { flexDirection: 'row', alignItems: 'center' },
+  saveButtonDisabled: { 
+    backgroundColor: '#bbb',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  saveButtonText: { 
+    color: '#fff', 
+    fontSize: 16, 
+    fontWeight: '700',
+  },
+  loadingContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center',
+  },
 });
 
 export default BoardWrite;
