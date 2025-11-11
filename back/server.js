@@ -30,7 +30,6 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
 
 // ✅ 세션 미들웨어 (선택사항: JWT로 대체 가능)
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/studywithme';
@@ -57,6 +56,8 @@ app.get('/kakao-map.html', (req, res) => {
     res.status(500).send('kakao-map.html load error');
   }
 });
+
+app.use(express.static(path.join(__dirname, 'public')));
 
 // 📌 기존 라우트
 app.use('/profile', require('./routes/profile'));
@@ -171,3 +172,4 @@ mongoose.connect(MONGO_URI)
   .catch((err) => {
     console.error('❌ MongoDB 연결 실패:', err.message);
   });
+
