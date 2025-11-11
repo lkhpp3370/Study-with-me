@@ -1,1 +1,107 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>StudyWithMe Kakao Map</title>
+  <style>
+    html,body,#map{height:100%;margin:0;padding:0}
+    .pin{font-size:20px;cursor:pointer}
+  </style>
+  <script>
+    // RN 로그/오류 전달
+    function postRN(obj){
+      if (window.ReactNativeWebView) {
+        try { window.ReactNativeWebView.postMessage(JSON.stringify(obj)); } catch(e){}
+      }
+    }
+    window.onerror=function(message, source, lineno, colno, error){
+      postRN({type:'error', message, source, lineno, colno, stack: (error&&error.stack)||null});
+    };
+  </script>
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=__KAKAO_JS_KEY__&autoload=false"></script>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    kakao.maps.load(function(){
+      try{
+        var center = new kakao.maps.LatLng(35.1335,129.105);
+        var map = new kakao.maps.Map(document.getElementById('map'), { center: center, level: 4 });
 
+        function iconByType(t){
+          if(t==='cafe') return '☕';
+          if(t==='study') return '📚';
+          if(t==='library') return '🏛️';
+          if(t==='me') return '📍';
+          return '📌';
+        }
+
+        // 외부에서 호출할 API들
+        var markers = [];
+        var places  = [];
+        var meMarker = null;
+
+        window.updatePlaces = function(list){
+          try{
+            places = Array.isArray(list) ? list : [];
+            // 기존 마커 제거
+            markers.forEach(function(m){ m.setMap && m.setMap(null); });
+            markers = [];
+
+            places.forEach(function(p){
+              if(!p || typeof p.latitude!=='number' || typeof p.longitude!=='number') return;
+              var pos = new kakao.maps.LatLng(p.latitude, p.longitude);
+              var el = document.createElement('div');
+              el.className='pin';
+              el.textContent = iconByType(p.type || 'other');
+              el.onclick = function(){ postRN({type:'marker_click', place: p}); };
+              var ov = new kakao.maps.CustomOverlay({ position: pos, content: el, yAnchor: 1 });
+              ov.setMap(map);
+              markers.push(ov);
+            });
+          }catch(e){ postRN({type:'error', message: String(e)}); }
+        };
+
+        window.moveToLocation = function(lat, lng){
+          try{
+            var pos = new kakao.maps.LatLng(lat, lng);
+            map.setCenter(pos);
+            map.panTo(pos);
+          }catch(e){}
+        };
+
+        window.updateMyLocation = function(lat, lng){
+          try{
+            var pos = new kakao.maps.LatLng(lat, lng);
+            if(meMarker){
+              meMarker.setPosition(pos);
+            }else{
+              var el=document.createElement('div');
+              el.className='pin'; el.textContent='📍';
+              meMarker=new kakao.maps.CustomOverlay({position:pos,content:el,yAnchor:1});
+              meMarker.setMap(map);
+            }
+            map.panTo(pos);
+          }catch(e){}
+        };
+
+        kakao.maps.event.addListener(map, 'idle', function(){
+          try{
+            var bounds = map.getBounds();
+            var vis = places.filter(function(p){
+              try{ return bounds.contain(new kakao.maps.LatLng(p.latitude,p.longitude)); }catch(e){ return false; }
+            });
+            postRN({type:'bounds_changed', places: vis});
+          }catch(e){}
+        });
+
+        // 최초 로딩 완료 알림
+        postRN({type:'ready'});
+      }catch(err){
+        postRN({type:'error', message:String(err)});
+      }
+    });
+  </script>
+</body>
+</html>
