@@ -1,65 +1,78 @@
 // screens/MapScreen.js
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput,
-  Platform, Modal, Pressable, Alert, Linking, FlatList, Animated, PanResponder, Dimensions // ✅ 수정: Dimensions 추가
+  Platform, Modal, Pressable, Alert, Linking, FlatList, Animated, PanResponder, Dimensions
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
-import { BACKEND_URL } from '@env';
-import { saveMyPlace, getMyPlaces } from '../utils/storage';
+import * as Location from 'expo-location'; // ✅ 수정: 정적 import 사용
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+import {  BACKEND_URL } from '../services/api';
 
-const KAKAO_JS_KEY = '8735db830fce16c65a56a48c7907c10c';
 
 // 초기 중심: 부경대(대연캠퍼스 인근)
 const DEFAULT_CENTER = { latitude: 35.1335, longitude: 129.105 };
 
-// ✅ 스냅포인트: 완전 내림(0) / 중간(0.5)
-const SNAP_POINTS = [0.0, 0.5]; // ✅ 수정: 2단계로 축소
-const MAX_SHEET_PCT = 0.85;     // 최대 높이 화면의 85%
+// ✅ 스냅포인트: 완전 내림(0) / 기본(0.35) / 최대로 올림(0.8)
+const SNAP_POINTS = [0.0, 0.35, 0.8];
+const MAX_SHEET_PCT = 0.8; // 화면 최대 80%
 const WIN_H = Dimensions.get('window').height;
 
 export default function MapScreen({ route, navigation }) {
   const webRef = useRef(null);
-  const userId = route?.params?.userId || 'tester'; // 임시: 실제 로그인 연동 시 교체
+  const [userId, setUserId] = useState(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchPlaces();   // 장소 목록 + 평균 평점 다시 불러오기
+    }, [])
+  );
+
+  useEffect(() => {
+    (async () => {
+      const id = await AsyncStorage.getItem('userId');
+      if (id) setUserId(id);
+    })();
+  }, []);
 
   // 지도/필터 상태
   const [region, setRegion] = useState(DEFAULT_CENTER);
-  const [myLocation, setMyLocation] = useState(null); // 내 위치 좌표 보관(마커 용)
+  const [myLocation, setMyLocation] = useState(null);
   const [query, setQuery] = useState('');
   const [onlyOutlets, setOnlyOutlets] = useState(false);
   const [only24h, setOnly24h] = useState(false);
-  const [maxNoise, setMaxNoise] = useState(5);
   const [typeCafe, setTypeCafe] = useState(true);
   const [typeStudy, setTypeStudy] = useState(true);
   const [typeLibrary, setTypeLibrary] = useState(true);
   const [typeOther, setTypeOther] = useState(true);
-  const [onlyFav, setOnlyFav] = useState(false); // ✅ 즐겨찾기 모드 (맵 이동 없음)
+  const [onlyGroup, setOnlyGroup] = useState(false);
+  const [onlyWifi, setOnlyWifi] = useState(false);
+  const [onlyFav, setOnlyFav] = useState(false);
+  const boundsTimeout = useRef(null);
 
   const [places, setPlaces] = useState([]);
   const [favorites, setFavorites] = useState(new Set());
   const [selected, setSelected] = useState(null);
+  const [visiblePlaces, setVisiblePlaces] = useState([]);
 
   const [showFilter, setShowFilter] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // 장소 리뷰 평균 캐시 (리스트에 표기)
-  const [ratingMap, setRatingMap] = useState({}); // {placeId: {avg, count}}
+  const [ratingMap, setRatingMap] = useState({});
 
-  // ---------- 바텀시트(리스트) 드래그 ----------
-  // sheetHeight는 0..1 정규화 값. 실제 높이 = sheetHeight * (WIN_H * MAX_SHEET_PCT)
-  const [sheetHeight] = useState(new Animated.Value(0)); // 0~1
-  const sheetRatioRef = useRef(SNAP_POINTS[1]); // 현재 스냅 비율 기억
+  const [sheetHeight] = useState(new Animated.Value(0));
+  const sheetRatioRef = useRef(SNAP_POINTS[1]);
 
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 5,
       onPanResponderMove: (_, g) => {
-        // ✅ 수정: 정규화 기반으로 부드럽게
-        const delta = -g.dy / (WIN_H * MAX_SHEET_PCT); // 위로 올리면 +
+        const delta = -g.dy / (WIN_H * MAX_SHEET_PCT);
         let next = Math.max(0, Math.min(1, sheetRatioRef.current + delta));
         sheetHeight.setValue(next);
       },
@@ -70,40 +83,60 @@ export default function MapScreen({ route, navigation }) {
     })
   ).current;
 
-  // ---------- 데이터 로드 ----------
   const fetchPlaces = async () => {
     try {
-      setLoading(true);
       const res = await axios.get(`${BACKEND_URL}/places`);
-      const data = Array.isArray(res.data) ? res.data : [];
-      setPlaces(data);
+      const places = res.data;
+
+      // 각 장소별 avg 가져오기
+      const withAvg = await Promise.all(
+        places.map(async (p) => {
+          try {
+            const avgRes = await axios.get(`${BACKEND_URL}/reviews/place/${p._id}/avg`);
+            return { ...p, avg: avgRes.data.avg, reviewCount: avgRes.data.count };
+          } catch {
+            return { ...p, avg: 0, reviewCount: 0 };
+          }
+        })
+      );
+
+      setPlaces(withAvg);
     } catch (err) {
-      Alert.alert('실패', '장소 목록을 불러오지 못했습니다.');
-    } finally {
-      setLoading(false);
+      console.error('장소 불러오기 실패:', err.message);
     }
   };
 
-  const fetchFavorites = async () => {
+  const fetchFavorites = async (uid = userId) => {
     try {
-      // 즐겨찾기 목록 조회 (/favorites?userId=)
-      const res = await axios.get(`${BACKEND_URL}/favorites`, { params: { userId } });
+      if (!uid) return; // userId 없으면 호출 안 함
+      const res = await axios.get(`${BACKEND_URL}/favorites`, { params: { userId: uid } });
       const arr = Array.isArray(res.data) ? res.data : [];
-      setFavorites(new Set(arr.map((it) => (it.place?._id || it.place))));
+      setFavorites(new Set(arr.map(it => (it.place?._id || it.place))));
     } catch (e) {
-      // 조용히 무시
+      console.log('getFavorites fail', e?.response?.data || e.message);
     }
   };
+
 
   useEffect(() => {
     fetchPlaces();
-    fetchFavorites();
-    // 바텀시트 기본 스냅: 중간(0.5)
     Animated.timing(sheetHeight, { toValue: SNAP_POINTS[1], duration: 0, useNativeDriver: false }).start();
     sheetRatioRef.current = SNAP_POINTS[1];
   }, []);
 
-  // 필터/검색
+  useEffect(() => {
+    if (userId) fetchFavorites();
+  }, [userId]);
+
+  useEffect(() => {
+  if (webRef.current && filteredPlaces) {
+    webRef.current.injectJavaScript(`
+      window.updatePlaces(${JSON.stringify(filteredPlaces)});
+      true;
+    `);
+  }
+}, [filteredPlaces]);
+
   const filteredPlaces = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (places || [])
@@ -119,76 +152,102 @@ export default function MapScreen({ route, navigation }) {
       })
       .filter(p => (onlyOutlets ? p.powerOutlet : true))
       .filter(p => (only24h ? p.open_24h : true))
-      .filter(p => ((p.noise || 1) <= maxNoise))
+      .filter(p => (onlyGroup ? p.groupAvailable : true))
+      .filter(p => (onlyWifi ? p.wifi : true))
       .filter(p => (onlyFav ? favorites.has(p._id) : true));
-  }, [places, query, typeCafe, typeStudy, typeLibrary, typeOther, onlyOutlets, only24h, maxNoise, onlyFav, favorites]);
+  }, [places, query, typeCafe, typeStudy, typeLibrary, typeOther, onlyOutlets, only24h, onlyGroup, onlyWifi, onlyFav, favorites]);
 
-  // Kakao WebView HTML (region/places/myLocation에 따라 갱신)
-  const html = buildKakaoHtml(KAKAO_JS_KEY, region, filteredPlaces, myLocation);
+  const listData = useMemo(() => {
+    if (onlyFav) {
+      // 즐겨찾기 + 필터 적용
+      return filteredPlaces.filter(p => favorites.has(p._id));
+    }
+    // 기본: 현재 화면에 보이는 장소 중 필터된 것만
+    return visiblePlaces.filter(p => filteredPlaces.some(f => f._id === p._id));
+  }, [onlyFav, filteredPlaces, favorites, visiblePlaces]);
 
+
+  useEffect(() => {
+    if (webRef.current) {
+      webRef.current.injectJavaScript(`
+        window.updatePlaces(${JSON.stringify(filteredPlaces)});
+       true;
+      `);
+    }
+}, [filteredPlaces, myLocation]);
+
+  // Kakao Map에서 bounds 이벤트를 받아오는 로직 추가 (onMessage에서 처리)
   const onMessage = (e) => {
     try {
       const msg = JSON.parse(e.nativeEvent.data);
       if (msg.type === 'marker_click') {
         setSelected(msg.place);
         setShowDetail(true);
-      } else if (msg.type === 'error') {
-        console.error('❌ Kakao JS 오류:', msg);
+      } else if (msg.type === 'bounds_changed') {
+        if (boundsTimeout.current) clearTimeout(boundsTimeout.current);
+        boundsTimeout.current = setTimeout(() => {
+          const ids = new Set((msg.places || []).map(p => p._id));
+          const matched = (filteredPlaces || []).filter(p => ids.has(p._id));
+          setVisiblePlaces(matched);
+        }, 500); // 0.5초 디바운스
       }
     } catch {}
   };
 
-  // ✅ 즐겨찾기 토글 (리스트/상세에서 별을 누르면 바로 반영 + 맵 이동 없음)
   const toggleFav = async (placeId) => {
     try {
       if (!placeId) return;
-      // 백엔드: /favorites/toggle { userId, placeId }
-      const res = await axios.post(`${BACKEND_URL}/favorites/toggle`, { userId, placeId }); // ✅ 수정
+      const uid = userId || await AsyncStorage.getItem('userId');
+      if (!uid) {
+        Alert.alert('로그인이 필요합니다', '다시 로그인해주세요.');
+        return;
+      }
+      const res = await axios.post(`${BACKEND_URL}/favorites/toggle`, { userId: uid, placeId });
       const { isFavorite } = res.data || {};
+
       setFavorites(prev => {
         const next = new Set(prev);
         if (isFavorite) next.add(placeId);
         else next.delete(placeId);
         return next;
       });
+
+    // 필요하면 서버 상태와 완전 동기화
+    // await fetchFavorites(uid);
     } catch (e) {
+      console.log('toggleFav fail', e?.response?.data || e.message);
       Alert.alert('실패', '즐겨찾기 반영 실패');
     }
   };
 
-  // 리스트 항목 클릭 시: 지도 이동 + 상세 열기
+
   const focusOnPlace = (place) => {
-    if (!place) return;
-    setRegion({ latitude: place.latitude, longitude: place.longitude });
+    if (!place?.latitude || !place?.longitude) return;
+    // WebView 내부 지도 이동 (재로딩 없이 부드럽게 이동)
+    webRef.current?.injectJavaScript(`window.moveToLocation(${place.latitude}, ${place.longitude}); true;`);
     setSelected(place);
     setShowDetail(true);
   };
 
-  // 내 위치로 이동 (버튼으로만; 자동 권한요청 X) + 로딩 체감 개선
   const [locating, setLocating] = useState(false);
   const jumpToCurrent = async () => {
     try {
       setLocating(true);
-      const ExpoLocation = await import('expo-location');
-      const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
+      const { status } = await Location.requestForegroundPermissionsAsync(); // ✅ 수정
       if (status !== 'granted') {
         Alert.alert('권한 필요', '위치 권한을 허용해주세요.');
         return;
       }
-      // 빠른 응답: lastKnown → 없으면 Balanced
-      let loc;
-      try {
-        loc = await ExpoLocation.getLastKnownPositionAsync();
-      } catch {}
+      let loc = await Location.getLastKnownPositionAsync().catch(() => null); // ✅ 수정
       if (!loc) {
-        loc = await ExpoLocation.getCurrentPositionAsync({
-          accuracy: ExpoLocation.Accuracy.Balanced,
+        loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced, // ✅ 수정
           mayShowUserSettingsDialog: false,
         });
       }
       const me = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
-      setRegion(me);
-      setMyLocation(me); // 내 위치 마커 갱신
+      setMyLocation(me);
+      webRef.current?.injectJavaScript(`window.updateMyLocation(${me.latitude}, ${me.longitude}); true;`);      
     } catch {
       Alert.alert('현재 위치 사용 불가');
     } finally {
@@ -204,42 +263,46 @@ export default function MapScreen({ route, navigation }) {
   const [newTables, setNewTables] = useState('');
   const [newOutlets, setNewOutlets] = useState('');
   const [newType, setNewType] = useState('other');
+  const [newWifi, setNewWifi] = useState(false);
 
-  const handleAddPlace = async (saveLocal) => {
+  // 장소 추가
+  const handleAddPlace = async () => {
     if (!newName.trim() || !newAddr.trim()) {
-      Alert.alert('알림', '이름과 주소는 필수 입력입니다.');
+      Alert.alert('알림', '이름과 주소를 입력해주세요.');
       return;
     }
     try {
-      if (saveLocal) {
-        await saveMyPlace({
-          name: newName,
-          address: newAddr,
-          openingHours: newHours,
-          seatCount: Number(newTables) || 0,
-          powerOutletCount: Number(newOutlets) || 0,
-          type: newType,
-        });
-        Alert.alert('완료', '내 기기에 저장되었습니다.');
-      } else {
-        await axios.post(`${BACKEND_URL}/places`, {
-          name: newName,
-          address: newAddr,
-          openingHours: newHours,
-          seatCount: Number(newTables) || 0,
-          powerOutlet: (Number(newOutlets) || 0) > 0,
-          powerOutletCount: Number(newOutlets) || 0,
-          type: newType,
-        });
-        Alert.alert('완료', '추가 요청이 전송되었습니다.');
-        fetchPlaces();
-      }
-      setShowAddModal(false);
-      setNewName(''); setNewAddr(''); setNewHours(''); setNewTables(''); setNewOutlets(''); setNewType('other');
-    } catch {
-      Alert.alert('실패', '추가 실패');
+      await axios.post(`${BACKEND_URL}/places/request-add`, {
+        requestType: 'add',
+        type: newType || 'other',
+        name: newName.trim(),
+        address: newAddr.trim(),
+        openingHours: newHours.trim(),
+        seatCount: parseInt(newTables) || 0,
+        powerOutlet: parseInt(newOutlets) > 0, // 0보다 크면 true
+        wifi: newWifi,
+      }, {
+        headers: { 'Content-Type': 'application/json' }, // ✅ body 보장
+      });
+
+      Alert.alert(
+        '완료',
+        '추가 요청이 접수되었습니다.\n관리자 검토 후 반영됩니다.',
+        [{ text: '확인', onPress: () => setShowAddModal(false) }]
+      );
+
+      setNewName('');
+      setNewAddr('');
+      setNewHours('');
+      setNewTables('');
+      setNewOutlets('');
+      setNewWifi(false);
+    } catch (e) {
+      console.error('❌ 장소 추가 요청 실패:', e);
+      Alert.alert('실패', '추가 요청 전송에 실패했습니다.');
     }
   };
+
 
   // --------- 리스트 평점 보조 로딩 ---------
   const ensurePlaceRating = async (placeId) => {
@@ -272,20 +335,35 @@ export default function MapScreen({ route, navigation }) {
     }
   };
 
-  // 바텀시트 실제 높이 스타일 (정규화 * 최대 px)
-  const animatedSheetHeight = Animated.multiply(sheetHeight, WIN_H * MAX_SHEET_PCT); // ✅ 수정
-  const sheetAnimatedStyle = { height: animatedSheetHeight }; // ✅ 수정
+  // 바텀시트 실제 높이 스타일
+  const animatedSheetHeight = Animated.multiply(sheetHeight, WIN_H * MAX_SHEET_PCT);
+  const sheetAnimatedStyle = { height: animatedSheetHeight };
+
 
   return (
     <View style={{ flex: 1 }}>
       {/* Kakao 지도 */}
       <WebView
         ref={webRef}
-        originWhitelist={['*']}
-        source={{ html }}
-        onMessage={onMessage}
         style={StyleSheet.absoluteFillObject}
-        onLoadEnd={() => console.log('✅ WebView 로드 완료')}
+        source={{ uri: `${BACKEND_URL}/kakao-map.html` }}   // ✅ 서버 호스팅 HTML
+        originWhitelist={['*']}
+        javaScriptEnabled
+        domStorageEnabled
+        geolocationEnabled
+        mixedContentMode="always"
+        allowFileAccess
+        allowUniversalAccessFromFileURLs
+        onShouldStartLoadWithRequest={() => true}
+        onMessage={onMessage}
+        onLoadEnd={() => {
+          if (filteredPlaces && webRef.current) {
+            webRef.current.injectJavaScript(`
+              if (window.updatePlaces) { window.updatePlaces(${JSON.stringify(filteredPlaces)}); }
+              true;
+            `);
+          }
+        }}
         onError={(e) => console.error('❌ WebView 오류:', e.nativeEvent)}
       />
 
@@ -336,77 +414,102 @@ export default function MapScreen({ route, navigation }) {
 
         <View style={styles.listHeaderRow}>
           <Text style={styles.listHeaderText}>
-            {onlyFav ? '즐겨찾기' : '장소'} {filteredPlaces.length}개
+            {onlyFav ? `즐겨찾기 ${favorites.size}개` : `장소 ${visiblePlaces.length}개`}
           </Text>
           {onlyFav && <Text style={styles.favoriteHint}>★ 즐겨찾기 모드</Text>}
         </View>
 
-        <FlatList
-          data={filteredPlaces}
-          keyExtractor={(item, idx) => item._id || item.id || String(idx)}
-          onViewableItemsChanged={({ viewableItems }) => {
-            // 보이는 것만 평점 프리페치
-            viewableItems.forEach(v => ensurePlaceRating(v.item?._id));
-          }}
-          viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
-          ListEmptyComponent={
-            <Text style={{ padding: 12, color: '#777' }}>
-              {onlyFav ? '즐겨찾기한 장소가 없습니다.' : '조건에 맞는 장소가 없습니다.'}
-            </Text>
-          }
-          renderItem={({ item }) => {
-            const tagType = toTypeLabelIcon(item.type);
-            const r = ratingMap[item._id];
-            const ratingText = r ? `${(r.avg ?? 0).toFixed(1)}점 (${r.count ?? 0})` : '평점 계산 중…';
-            return (
-              <TouchableOpacity style={styles.listItem} onPress={() => focusOnPlace(item)}>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={styles.listName}>{item.name}</Text>
-                    <View style={styles.typeTag}> {/* ✅ 타입 태그 표시 */}
-                      <Ionicons name={tagType.icon} size={12} color="#fff" />
-                      <Text style={styles.typeTagText}>{tagType.label}</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.listAddr} numberOfLines={1}>{item.address}</Text>
+				<FlatList
+					data={listData.filter(p => p && typeof p === 'object')}
+					keyExtractor={(item, idx) =>
+						(item._id ? item._id.toString() : item.id ? item.id.toString() : String(idx))
+					}
+					onViewableItemsChanged={({ viewableItems }) => {
+						viewableItems.forEach(v => ensurePlaceRating(v.item?._id));
+					}}
+					viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+					ListEmptyComponent={
+						<Text style={{ padding: 12, color: '#777' }}>
+							{onlyFav ? '즐겨찾기한 장소가 없습니다.' : '조건에 맞는 장소가 없습니다.'}
+						</Text>
+					}
+					renderItem={({ item }) => {
+						if (!item) return null;
 
-                  {/* 태그들: 콘센트, 이용시간, Wi-Fi, 그룹 */}
-                  <View style={{ flexDirection: 'row', marginTop: 6, flexWrap: 'wrap' }}>
-                    {item.powerOutlet ? <Pill text="콘센트" /> : null}
-                    {(item.openingHours || item.open_24h) ? (
-                      <Pill text={item.openingHours ? `시간 ${item.openingHours}` : '24시간'} />
-                    ) : null}
-                    {item.wifi ? <Pill text="Wi-Fi" /> : null}
-                    {item.groupAvailable ? <Pill text="그룹 이용" /> : null}
-                  </View>
+						const tagType = toTypeLabelIcon(item.type);
+						const r = ratingMap[item._id];
+						const ratingText = r
+							? `${(r.avg ?? 0).toFixed(1)}점 (${r.count ?? 0})`
+							: '평점 계산 중…';
 
-                  {/* 평점 표시 */}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-                    {[1, 2, 3, 4, 5].map(n => (
-                      <Ionicons
-                        key={n}
-                        name={r && r.avg >= n ? 'star' : r && r.avg >= n - 0.5 ? 'star-half' : 'star-outline'}
-                        size={14}
-                        color="#f5a524"
-                        style={{ marginRight: 2 }}
-                      />
-                    ))}
-                    <Text style={{ marginLeft: 6, color: '#444', fontWeight: '600' }}>{ratingText}</Text>
-                  </View>
-                </View>
+						return (
+							<TouchableOpacity
+								style={styles.listItem}
+								onPress={() => { setSelected(item); setShowDetail(true); focusOnPlace(item); }}
+							>
+								<View style={{ flex: 1 }}>
+									{/* 이름 + 타입 태그 */}
+									<View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+										<Text style={styles.listName}>{item.name || '이름 없음'}</Text>
+										{tagType && (
+											<View style={styles.typeTag}>
+												<Ionicons name={tagType.icon} size={12} color="#fff" />
+												<Text style={styles.typeTagText}>{tagType.label}</Text>
+											</View>
+										)}
+									</View>
 
-                {/* ✅ 리스트에서 바로 즐겨찾기 토글 */}
-                <TouchableOpacity onPress={() => toggleFav(item._id)}>
-                  <Ionicons
-                    name={favorites.has(item._id) ? 'star' : 'star-outline'}
-                    size={20}
-                    color="#f5a524"
-                  />
-                </TouchableOpacity>
-              </TouchableOpacity>
-            );
-          }}
-        />
+									{/* 주소 */}
+									<Text style={styles.listAddr} numberOfLines={1}>
+										{item.address || '주소 없음'}
+									</Text>
+
+									{/* 태그: 콘센트, 이용시간, Wi-Fi, 그룹 */}
+									<View style={{ flexDirection: 'row', marginTop: 6, flexWrap: 'wrap' }}>
+										{item.powerOutlet ? <Pill text="콘센트" /> : null}
+										{(item.openingHours || item.open_24h) ? (
+											<Pill text={item.openingHours ? `시간 ${item.openingHours}` : '24시간'} />
+										) : null}
+										{item.wifi ? <Pill text="Wi-Fi" /> : null}
+										{item.groupAvailable ? <Pill text="그룹 이용" /> : null}
+									</View>
+
+									{/* 평점 */}
+									<View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+										{[1, 2, 3, 4, 5].map(n => (
+											<Ionicons
+												key={n}
+												name={
+													r && r.avg >= n
+														? 'star'
+														: r && r.avg >= n - 0.5
+														? 'star-half'
+														: 'star-outline'
+												}
+												size={14}
+												color="#f5a524"
+												style={{ marginRight: 2 }}
+											/>
+										))}
+										<Text style={{ marginLeft: 6, color: '#444', fontWeight: '600' }}>
+											{ratingText}
+										</Text>
+									</View>
+								</View>
+
+								{/* 즐겨찾기 */}
+								<TouchableOpacity onPress={() => toggleFav(item._id)} style={{ padding: 4 }}>
+									<Ionicons
+										name={favorites.has(item._id) ? 'star' : 'star-outline'}
+										size={20}
+										color="#f5a524"
+									/>
+								</TouchableOpacity>
+							</TouchableOpacity>
+						);
+					}}
+				/>
+
       </Animated.View>
 
       {/* 필터 모달 */}
@@ -417,17 +520,14 @@ export default function MapScreen({ route, navigation }) {
 
           <RowSwitch label="콘센트 있음" on={onlyOutlets} toggle={() => setOnlyOutlets(v => !v)} />
           <RowSwitch label="24시간 운영" on={only24h} toggle={() => setOnly24h(v => !v)} />
-
-          <View style={{ marginTop: 14 }}>
-            <Text>최대 소음도: ≤ {maxNoise}</Text>
-            <Slider minimumValue={1} maximumValue={5} step={1} value={maxNoise} onValueChange={setMaxNoise} />
-          </View>
+          <RowSwitch label="그룹 이용 가능" on={onlyGroup} toggle={() => setOnlyGroup(v => !v)} />
+          <RowSwitch label="Wi-Fi 있음" on={onlyWifi} toggle={() => setOnlyWifi(v => !v)} />
 
           <View style={styles.typeRow}>
             <TypeChip label="카페" on={typeCafe} onPress={() => setTypeCafe(v => !v)} icon={<Ionicons name="cafe" size={14} color={typeCafe ? '#fff' : '#6b7280'} />} />
             <TypeChip label="스터디" on={typeStudy} onPress={() => setTypeStudy(v => !v)} icon={<Ionicons name="school" size={14} color={typeStudy ? '#fff' : '#6b7280'} />} />
             <TypeChip label="도서관" on={typeLibrary} onPress={() => setTypeLibrary(v => !v)} icon={<Ionicons name="book" size={14} color={typeLibrary ? '#fff' : '#6b7280'} />} />
-            <TypeChip label="기타" on={typeOther} onPress={() => setTypeOther(v => !v)} icon={<Ionicons name="location" size={14} color={typeOther ? '#fff' : '#6b7280'} />} />
+            <TypeChip label="기타" on={typeOther} onPress={() => setTypeOther(v => !v)} icon={<Ionicons name="location-outline" size={14} color={typeOther ? '#fff' : '#6b7280'} />}/>
           </View>
 
           <View style={styles.modalActions}>
@@ -468,6 +568,25 @@ export default function MapScreen({ route, navigation }) {
               {typeof selected.seatCount === 'number' && selected.seatCount > 0 ? (
                 <InfoTag on icon="grid-outline" label={`좌석 ${selected.seatCount}`} />
               ) : null}
+
+              {/* ✅ 전화번호 */}
+              {selected.phone ? (
+                <TouchableOpacity onPress={() => Linking.openURL(`tel:${selected.phone}`)}>
+                  <InfoTag on icon="call-outline" label={selected.phone} />
+                </TouchableOpacity>
+              ) : null}
+
+              {/* ✅ 웹사이트 */}
+              {selected.website ? (
+                <TouchableOpacity onPress={() => Linking.openURL(selected.website)}>
+                  <InfoTag on icon="globe-outline" label="웹사이트" />
+                </TouchableOpacity>
+              ) : null}
+
+              {/* ✅ 24시간 */}
+              {selected.open_24h ? (
+                <InfoTag on icon="time-outline" label="24시간 운영" />
+              ) : null}
             </View>
 
             <View style={styles.detailActions}>
@@ -503,29 +622,46 @@ export default function MapScreen({ route, navigation }) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>장소 추가</Text>
+            {/* ▼ 유형 선택 (카페/스터디/도서관/기타) */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+              {[
+              { t: 'cafe', label: '카페', icon: 'cafe' },
+              { t: 'study', label: '스터디', icon: 'school' },
+              { t: 'library', label: '도서관', icon: 'book' },
+              { t: 'other', label: '기타', icon: 'location-outline' },
+              ].map(({ t, label, icon }) => (
+                <TouchableOpacity
+                key={t}
+                onPress={() => setNewType(t)}
+                  style={[
+                    styles.typeChip,
+                    newType === t && styles.typeChipOn,
+                    { paddingVertical: 6, paddingHorizontal: 10 },
+                  ]}
+                >
+                  <Ionicons name={icon} size={14} color={newType === t ? '#fff' : '#6b7280'} />
+                  <Text style={[styles.typeChipText, newType === t && { color: '#fff' }]}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <TextInput style={styles.modalInput} placeholder="장소 이름 (필수)" value={newName} onChangeText={setNewName} />
             <TextInput style={styles.modalInput} placeholder="도로명 주소 (필수)" value={newAddr} onChangeText={setNewAddr} />
             <TextInput style={styles.modalInput} placeholder="운영시간 (예: 09:00~22:00)" value={newHours} onChangeText={setNewHours} />
             <TextInput style={styles.modalInput} placeholder="테이블 수 (예: 12)" value={newTables} onChangeText={setNewTables} keyboardType="numeric" />
             <TextInput style={styles.modalInput} placeholder="콘센트 수 (예: 8)" value={newOutlets} onChangeText={setNewOutlets} keyboardType="numeric" />
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-              {['cafe','study','library','other'].map(t => {
-                const on = newType === t;
-                return (
-                  <TouchableOpacity key={t} onPress={() => setNewType(t)} style={[styles.typeChip, on && styles.typeChipOn]}>
-                    <Ionicons name={toTypeLabelIcon(t).icon} size={14} color={on ? '#fff' : '#6b7280'} />
-                    <Text style={[styles.typeChipText, on && { color: '#fff' }]}>{toTypeLabelIcon(t).label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{ marginRight: 8 }}>Wi-Fi 있음</Text>
+              <TouchableOpacity
+                onPress={() => setNewWifi(v => !v)}
+                style={[styles.pill, newWifi && styles.pillOn]}
+              >
+                <Text style={[styles.pillText, newWifi && styles.pillTextOn]}>{newWifi ? 'ON' : 'OFF'}</Text>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.btnGhost} onPress={() => setShowAddModal(false)}>
                 <Text style={styles.btnGhostText}>취소</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.btnPrimary} onPress={() => handleAddPlace(true)}>
-                <Text style={styles.btnPrimaryText}>내 기기 저장</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.btnPrimary} onPress={() => handleAddPlace(false)}>
                 <Text style={styles.btnPrimaryText}>추가 요청</Text>
@@ -571,51 +707,108 @@ function buildKakaoHtml(appKey, center, places, myLocation) {
         center: new kakao.maps.LatLng(center.lat, center.lng), level: 4
       });
 
-      var places = ${safePlaces};
-
-      function colorByType(t){
-        if(t==='cafe') return '#E74C3C';
-        if(t==='study') return '#8E44AD';
-        if(t==='library') return '#3498DB';
-        if(t==='me') return '#2ECC71';
-        return '#95A5A6'; // other
+      function iconByType(t){
+        if(t==='cafe') return '☕';        
+        if(t==='study') return '📚';       
+        if(t==='library') return '🏛️';    
+        if(t==='me') return '📍';          
+        return '📌';                       
       }
 
-      function drawPin(lat, lng, type, place){
-        var el = document.createElement('div');
-        el.className = 'pin';
-        el.style.background = colorByType(type);
-        el.style.border = '2px solid #fff';
-        el.style.boxShadow = '0 0 4px rgba(0,0,0,0.3)';
+      var meMarker = null;
+      window.moveToLocation = function(lat, lng){
+        try {
+          if (!map || typeof lat !== 'number' || typeof lng !== 'number') return;
+          var pos = new kakao.maps.LatLng(lat, lng);
+          map.setCenter(pos);
+          map.panTo(pos);
+        } catch (e) {}
+      };
 
-        var marker = new kakao.maps.CustomOverlay({
-          position: new kakao.maps.LatLng(lat, lng),
+      window.updateMyLocation = function(lat, lng){
+        try{
+          var pos = new kakao.maps.LatLng(lat, lng);
+          if (meMarker) {
+            meMarker.setPosition(pos);
+          } else {
+            var el = document.createElement('div');
+            el.style.fontSize = '20px'; el.textContent = '📍';
+            meMarker = new kakao.maps.CustomOverlay({ position: pos, content: el, yAnchor: 1 });
+            meMarker.setMap(map);
+          }
+          map.panTo(pos);
+        }catch(e){}
+      };
+
+      // ✅ 마커 배열을 전역으로 유지
+      if (!window.markers) window.markers = [];
+
+      window.updatePlaces = function(places){
+        try {
+          // 전역 places 배열 갱신
+          window.places = places || [];
+
+          // 기존 마커 제거
+          window.markers.forEach(m => m.setMap(null));
+          window.markers = [];
+
+          // 새로운 마커 생성
+          window.places.forEach(p => {
+            if(p && typeof p.latitude==='number' && typeof p.longitude==='number'){
+              var el = document.createElement('div');
+              el.style.fontSize = '20px';
+              el.style.cursor = 'pointer';
+              el.textContent = iconByType(p.type || 'other');
+              var marker = new kakao.maps.CustomOverlay({
+                position: new kakao.maps.LatLng(p.latitude, p.longitude),
+                content: el,
+                yAnchor: 1
+              });
+              marker.setMap(map);
+              el.onclick = function(){
+                window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
+                  JSON.stringify({type:'marker_click', place: p})
+                );
+              };
+              window.markers.push(marker);
+            }
+          });
+        }catch(e){}
+      };
+
+      // 초기 places 반영
+      window.places = ${safePlaces};
+      window.updatePlaces(window.places);
+
+      kakao.maps.event.addListener(map, 'idle', function(){
+        var bounds = map.getBounds();
+        var visible = (window.places || []).filter(p => {
+          try {
+            var latlng = new kakao.maps.LatLng(p.latitude, p.longitude);
+            return bounds.contain(latlng);
+          } catch(e) {
+            return false;
+          }
+        });
+        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'bounds_changed',
+          places: visible
+        }));
+      });
+
+      // 내 위치 마커 표시
+      var me = ${me};
+      if(me && typeof me.latitude==='number' && typeof me.longitude==='number'){
+        var el = document.createElement('div');
+        el.style.fontSize = '20px'; el.textContent = '📍';
+        var myMarker = new kakao.maps.CustomOverlay({
+          position: new kakao.maps.LatLng(me.latitude, me.longitude),
           content: el,
           yAnchor: 1
         });
-        marker.setMap(map);
-
-        if(place){
-          el.style.cursor = 'pointer';
-          el.onclick = function(){
-            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({type:'marker_click', place: place}));
-          };
-        }
+        myMarker.setMap(map);
       }
 
-      // DB 장소들
-      for(var i=0;i<places.length;i++){
-        var p = places[i];
-        if(p && typeof p.latitude==='number' && typeof p.longitude==='number'){
-          drawPin(p.latitude, p.longitude, p.type || 'other', p);
-        }
-      }
-
-      // 내 위치
-      var me = ${me};
-      if(me && typeof me.latitude==='number' && typeof me.longitude==='number'){
-        drawPin(me.latitude, me.longitude, 'me', null);
-      }
     }catch(err){
       window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({type:'error', message:String(err)}));
     }
@@ -660,19 +853,21 @@ function Pill({ text }) {
 }
 
 // ✅ 스냅 계산 (2단계: 0 ↔ 0.5)
-function snapTo(val, vy){
+function snapTo(val, vy) {
   const current = val.__getValue();
   const points = SNAP_POINTS;
-  // 후보 스냅 선택
   let target = points[0];
   let min = 999;
-  for(const p of points){
+  for (const p of points) {
     const d = Math.abs(current - p);
-    if(d < min){ min = d; target = p; }
+    if (d < min) {
+      min = d; target = p;
+    }
   }
   Animated.spring(val, { toValue: target, useNativeDriver: false, bounciness: 0 }).start();
   return target;
 }
+
 function nextSnap(val){
   const current = val.__getValue();
   const points = SNAP_POINTS;
@@ -686,7 +881,8 @@ function toTypeLabelIcon(t){
     case 'cafe': return { label: '카페', icon: 'cafe' };
     case 'study': return { label: '스터디', icon: 'school' };
     case 'library': return { label: '도서관', icon: 'book' };
-    default: return { label: '기타', icon: 'location' };
+    case 'other': return { label: '기타', icon: 'location-outline' };
+    default: return { label: '알수없음', icon: 'help-circle-outline' };
   }
 }
 
@@ -702,9 +898,8 @@ const styles = StyleSheet.create({
     shadowColor:'#000', shadowOpacity:0.12, shadowRadius:6, shadowOffset:{width:0,height:2}, elevation:2 },
 
   // ✅ 리스트 패널은 Animated height를 사용
-  listPanel: { position:'absolute', left:0, right:0, bottom:0, backgroundColor:'#fff',
-    borderTopLeftRadius:16, borderTopRightRadius:16, paddingTop:6, paddingHorizontal:8, zIndex: 5, overflow: 'hidden', maxHeight: WIN_H * MAX_SHEET_PCT },
-
+  listPanel: {position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16,
+     paddingTop: 6, paddingHorizontal: 8, zIndex: 5, overflow: 'hidden', minHeight: 28},
   grabber: { alignItems:'center', paddingVertical:6 },
   grabberBar: { width:40, height:4, borderRadius:2, backgroundColor:'#d1d5db' },
   listHeaderRow: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:6, paddingBottom:6 },
@@ -755,3 +950,5 @@ const styles = StyleSheet.create({
   loadingBadge: { position:'absolute', top:Platform.select({ ios:60, android:30 }), alignSelf:'center', backgroundColor:'#fff',
     borderRadius:999, paddingHorizontal:12, paddingVertical:6, shadowColor:'#000', shadowOpacity:0.12, shadowRadius:6, shadowOffset:{width:0,height:2} },
 });
+
+
