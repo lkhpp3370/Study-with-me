@@ -11,7 +11,7 @@ import axios from 'axios';
 import * as Location from 'expo-location'; // ✅ 수정: 정적 import 사용
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
-import {  BACKEND_URL, KAKAO_JS_KEY } from '../services/api';
+import {  BACKEND_URL } from '../services/api';
 
 
 // 초기 중심: 부경대(대연캠퍼스 인근)
@@ -166,7 +166,6 @@ export default function MapScreen({ route, navigation }) {
     return visiblePlaces.filter(p => filteredPlaces.some(f => f._id === p._id));
   }, [onlyFav, filteredPlaces, favorites, visiblePlaces]);
 
-  const html = useMemo(() => buildKakaoHtml(KAKAO_JS_KEY, DEFAULT_CENTER, [], null), []);
 
   useEffect(() => {
     if (webRef.current) {
@@ -346,18 +345,24 @@ export default function MapScreen({ route, navigation }) {
       {/* Kakao 지도 */}
       <WebView
         ref={webRef}
-        originWhitelist={['*']}
-        source={{ html }}
-        onMessage={onMessage}
         style={StyleSheet.absoluteFillObject}
+        source={{ uri: `${BACKEND_URL}/kakao-map.html` }}   // ✅ 서버 호스팅 HTML
+        originWhitelist={['*']}
+        javaScriptEnabled
+        domStorageEnabled
+        geolocationEnabled
+        mixedContentMode="always"
+        allowFileAccess
+        allowUniversalAccessFromFileURLs
+        onShouldStartLoadWithRequest={() => true}
+        onMessage={onMessage}
         onLoadEnd={() => {
-          console.log('✅ WebView 로드 완료');
-          if (filteredPlaces) {
+          if (filteredPlaces && webRef.current) {
             webRef.current.injectJavaScript(`
-              window.updatePlaces(${JSON.stringify(filteredPlaces)});
+              if (window.updatePlaces) { window.updatePlaces(${JSON.stringify(filteredPlaces)}); }
               true;
             `);
-          } 
+          }
         }}
         onError={(e) => console.error('❌ WebView 오류:', e.nativeEvent)}
       />
@@ -945,5 +950,4 @@ const styles = StyleSheet.create({
   loadingBadge: { position:'absolute', top:Platform.select({ ios:60, android:30 }), alignSelf:'center', backgroundColor:'#fff',
     borderRadius:999, paddingHorizontal:12, paddingVertical:6, shadowColor:'#000', shadowOpacity:0.12, shadowRadius:6, shadowOffset:{width:0,height:2} },
 });
-
 
