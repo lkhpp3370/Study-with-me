@@ -951,4 +951,3 @@ const styles = StyleSheet.create({
     borderRadius:999, paddingHorizontal:12, paddingVertical:6, shadowColor:'#000', shadowOpacity:0.12, shadowRadius:6, shadowOffset:{width:0,height:2} },
 });
 
-

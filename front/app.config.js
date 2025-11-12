@@ -1,6 +1,3 @@
-// app.config.js
-import 'dotenv/config';
-
 export default {
   expo: {
     name: 'study',
@@ -23,6 +20,7 @@ export default {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#ffffff',
       },
+      softwareKeyboardLayoutMode: 'resize' ,
       edgeToEdgeEnabled: true,
       package: 'com.anonymous.study',
     },
@@ -31,6 +29,11 @@ export default {
     },
     extra: {
       BACKEND_URL: process.env.BACKEND_URL,
+      KAKAO_JS_KEY: process.env.KAKAO_JS_KEY,
+      eas: {
+        projectId: 'e3e5f5d5-84d5-4d5a-9596-ab2cdaa62ec1',
+      }
     },
   },
 };
+

@@ -1,14 +1,32 @@
-// screens/SignUpScreen.js
+//수정완료
+// screens/SignUpScreen.js 
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Switch } from 'react-native';
+import { 
+  View, Text, TextInput, TouchableOpacity, StyleSheet, 
+  Alert, ScrollView, Switch, SafeAreaView 
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import DropDownPicker from 'react-native-dropdown-picker'; // DropDownPicker 추가
+import DropDownPicker from 'react-native-dropdown-picker';
 import api from '../services/api';
+
+const COLORS = {
+  primary: '#4F46E5',
+  primaryLight: '#818CF8',
+  primaryDark: '#3730A3',
+  bg: '#F8FAFC',
+  card: '#FFFFFF',
+  text: '#0F172A',
+  textLight: '#475569',
+  muted: '#94A3B8',
+  border: '#E2E8F0',
+  success: '#10B981',
+  error: '#EF4444',
+};
 
 export default function SignUpScreen() {
   const navigation = useNavigation();
 
-  // 상태 관리
   const [email, setEmail] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [isEmailVerified, setIsEmailVerified] = useState(false);
@@ -30,12 +48,11 @@ export default function SignUpScreen() {
     '정보융합대학', '자유전공학부', '자연과학대학', '환경해양대학', '학부대학', '미래융합학부'
   ];
 
-  const [openMajor, setOpenMajor] = useState(false); // 드롭다운 오픈 상태
+  const [openMajor, setOpenMajor] = useState(false);
   const [majorItems, setMajorItems] = useState(
     majors.map(item => ({ label: item, value: item }))
-  ); // 드롭다운 항목 리스트
+  );
 
-  // 이메일 인증 요청 + 중복 이메일 체크
   const handleEmailVerify = async () => {
     try {
       if (!email.endsWith('@pukyong.ac.kr')) {
@@ -54,7 +71,6 @@ export default function SignUpScreen() {
     }
   };
 
-  // 이메일 코드 확인
   const handleEmailCodeCheck = async () => {
     try {
       const res = await api.post(
@@ -73,7 +89,6 @@ export default function SignUpScreen() {
     }
   };
 
-  // 닉네임 중복 확인
   const handleCheckUsername = async () => {
     if (username.length < 2 || username.length > 12) {
       Alert.alert('닉네임은 2~12자 이내여야 합니다.');
@@ -89,7 +104,6 @@ export default function SignUpScreen() {
     }
   };
 
-  // 회원가입 요청
   const handleSignUp = async () => {
     if (!email || !username || !password || !confirmPassword || !gender || !major || !selectedGrade) {
       Alert.alert('모든 항목을 입력해주세요.');
@@ -135,118 +149,482 @@ export default function SignUpScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {/* 이메일 입력 */}
-      <Text style={styles.sectionTitle}>학교 이메일</Text>
-      <View style={styles.row}>
-        <TextInput style={styles.inputHalf} placeholder="이메일" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-        <TouchableOpacity style={styles.subButtonSmall} onPress={handleEmailVerify}>
-          <Text style={styles.subButtonText}>인증 요청</Text>
+    <SafeAreaView style={styles.container}>
+      {/* 헤더 */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <Ionicons name="chevron-back" size={28} color={COLORS.text} />
         </TouchableOpacity>
+        <Text style={styles.headerTitle}>회원가입</Text>
+        <View style={{ width: 28 }} />
       </View>
 
-      {/* 인증 코드 입력 */}
-      <View style={styles.row}>
-        <TextInput style={styles.inputHalf} placeholder="인증 코드 입력" value={verificationCode} onChangeText={setVerificationCode} keyboardType="numeric" />
-        <TouchableOpacity style={styles.subButtonSmall} onPress={handleEmailCodeCheck}>
-          <Text style={styles.subButtonText}>코드 확인</Text>
+      <ScrollView 
+        style={styles.content}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 이메일 인증 섹션 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="mail" size={20} color={COLORS.primary} />
+            <Text style={styles.sectionTitle}>학교 이메일 인증</Text>
+          </View>
+          
+          <View style={styles.inputRow}>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="mail-outline" size={18} color={COLORS.muted} />
+              <TextInput
+                style={styles.input}
+                placeholder="이메일"
+                placeholderTextColor={COLORS.muted}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+            </View>
+            <TouchableOpacity style={styles.actionButton} onPress={handleEmailVerify}>
+              <Text style={styles.actionButtonText}>인증 요청</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.inputRow}>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="key-outline" size={18} color={COLORS.muted} />
+              <TextInput
+                style={styles.input}
+                placeholder="인증 코드 6자리"
+                placeholderTextColor={COLORS.muted}
+                value={verificationCode}
+                onChangeText={setVerificationCode}
+                keyboardType="numeric"
+                maxLength={6}
+              />
+            </View>
+            <TouchableOpacity 
+              style={[styles.actionButton, isEmailVerified && styles.actionButtonSuccess]} 
+              onPress={handleEmailCodeCheck}
+            >
+              {isEmailVerified ? (
+                <Ionicons name="checkmark" size={18} color="#fff" />
+              ) : (
+                <Text style={styles.actionButtonText}>확인</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 비밀번호 섹션 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="lock-closed" size={20} color={COLORS.primary} />
+            <Text style={styles.sectionTitle}>비밀번호</Text>
+          </View>
+
+          <View style={styles.inputWrapper}>
+            <Ionicons name="lock-closed-outline" size={18} color={COLORS.muted} />
+            <TextInput
+              style={styles.input}
+              placeholder="비밀번호"
+              placeholderTextColor={COLORS.muted}
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
+          </View>
+
+          <View style={styles.inputWrapper}>
+            <Ionicons name="lock-closed-outline" size={18} color={COLORS.muted} />
+            <TextInput
+              style={styles.input}
+              placeholder="비밀번호 확인"
+              placeholderTextColor={COLORS.muted}
+              secureTextEntry
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+            />
+          </View>
+        </View>
+
+        {/* 닉네임 섹션 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="person" size={20} color={COLORS.primary} />
+            <Text style={styles.sectionTitle}>닉네임</Text>
+          </View>
+
+          <View style={styles.inputRow}>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="person-outline" size={18} color={COLORS.muted} />
+              <TextInput
+                style={styles.input}
+                placeholder="닉네임 (2~12자)"
+                placeholderTextColor={COLORS.muted}
+                value={username}
+                onChangeText={setUsername}
+                maxLength={12}
+              />
+            </View>
+            <TouchableOpacity 
+              style={[styles.actionButton, usernameChecked && styles.actionButtonSuccess]} 
+              onPress={handleCheckUsername}
+            >
+              {usernameChecked ? (
+                <Ionicons name="checkmark" size={18} color="#fff" />
+              ) : (
+                <Text style={styles.actionButtonText}>중복확인</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 성별 섹션 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="male-female" size={20} color={COLORS.primary} />
+              <Text style={styles.sectionTitle}>성별</Text>
+            </View>
+            <View style={styles.switchContainer}>
+              <Text style={styles.switchLabel}>공개</Text>
+              <Switch
+                value={genderPublic}
+                onValueChange={setGenderPublic}
+                trackColor={{ false: COLORS.border, true: COLORS.primaryLight }}
+                thumbColor={genderPublic ? COLORS.primary : '#f4f3f4'}
+              />
+            </View>
+          </View>
+
+          <View style={styles.optionRow}>
+            <TouchableOpacity
+              style={[styles.optionButton, gender === '남' && styles.optionButtonSelected]}
+              onPress={() => setGender('남')}
+            >
+              <Ionicons 
+                name="male" 
+                size={20} 
+                color={gender === '남' ? '#fff' : COLORS.textLight} 
+              />
+              <Text style={[styles.optionText, gender === '남' && styles.optionTextSelected]}>
+                남성
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.optionButton, gender === '여' && styles.optionButtonSelected]}
+              onPress={() => setGender('여')}
+            >
+              <Ionicons 
+                name="female" 
+                size={20} 
+                color={gender === '여' ? '#fff' : COLORS.textLight} 
+              />
+              <Text style={[styles.optionText, gender === '여' && styles.optionTextSelected]}>
+                여성
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 학과 섹션 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="school" size={20} color={COLORS.primary} />
+              <Text style={styles.sectionTitle}>학과</Text>
+            </View>
+            <View style={styles.switchContainer}>
+              <Text style={styles.switchLabel}>공개</Text>
+              <Switch
+                value={majorPublic}
+                onValueChange={setMajorPublic}
+                trackColor={{ false: COLORS.border, true: COLORS.primaryLight }}
+                thumbColor={majorPublic ? COLORS.primary : '#f4f3f4'}
+              />
+            </View>
+          </View>
+
+          <DropDownPicker
+            open={openMajor}
+            value={major}
+            items={majorItems}
+            setOpen={setOpenMajor}
+            setValue={setMajor}
+            setItems={setMajorItems}
+            placeholder="학과를 선택하세요"
+            placeholderStyle={{ color: COLORS.muted }}
+            listMode="SCROLLVIEW"
+            style={styles.dropdown}
+            dropDownContainerStyle={styles.dropdownContainer}
+            textStyle={{ color: COLORS.text }}
+          />
+        </View>
+
+        {/* 학년 섹션 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="trending-up" size={20} color={COLORS.primary} />
+              <Text style={styles.sectionTitle}>학년</Text>
+            </View>
+            <View style={styles.switchContainer}>
+              <Text style={styles.switchLabel}>공개</Text>
+              <Switch
+                value={gradePublic}
+                onValueChange={setGradePublic}
+                trackColor={{ false: COLORS.border, true: COLORS.primaryLight }}
+                thumbColor={gradePublic ? COLORS.primary : '#f4f3f4'}
+              />
+            </View>
+          </View>
+
+          <View style={styles.gradeGrid}>
+            {['1', '2', '3', '4'].map(year => (
+              <TouchableOpacity
+                key={year}
+                style={[styles.gradeButton, selectedGrade === year && styles.gradeButtonSelected]}
+                onPress={() => setSelectedGrade(year)}
+              >
+                <Text style={[styles.gradeText, selectedGrade === year && styles.gradeTextSelected]}>
+                  {year}학년
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* 휴학 여부 */}
+        <View style={styles.section}>
+          <View style={styles.leaveRow}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="pause-circle" size={20} color={COLORS.primary} />
+              <Text style={styles.sectionTitle}>휴학 여부</Text>
+            </View>
+            <Switch
+              value={isLeave}
+              onValueChange={setIsLeave}
+              trackColor={{ false: COLORS.border, true: COLORS.primaryLight }}
+              thumbColor={isLeave ? COLORS.primary : '#f4f3f4'}
+            />
+          </View>
+        </View>
+
+        {/* 회원가입 버튼 */}
+        <TouchableOpacity 
+          style={styles.signUpButton} 
+          onPress={handleSignUp}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.signUpButtonText}>회원가입</Text>
+          <Ionicons name="arrow-forward" size={20} color="#fff" />
         </TouchableOpacity>
-      </View>
-
-      {/* 비밀번호 설정 */}
-      <Text style={styles.sectionTitle}>비밀번호 설정</Text>
-      <TextInput style={styles.input} placeholder="비밀번호" secureTextEntry value={password} onChangeText={setPassword} />
-      <TextInput style={styles.input} placeholder="비밀번호 확인" secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} />
-
-      {/* 닉네임 */}
-      <Text style={styles.sectionTitle}>닉네임</Text>
-      <View style={styles.row}>
-        <TextInput style={styles.inputHalf} placeholder="닉네임 (2~12자)" value={username} onChangeText={setUsername} />
-        <TouchableOpacity style={styles.subButtonSmall} onPress={handleCheckUsername}>
-          <Text style={styles.subButtonText}>중복 확인</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* 성별 */}
-      <View style={styles.rowBetween}>
-        <Text style={styles.sectionTitle}>성별</Text>
-        <View style={styles.switchRow}>
-          <Text>공개</Text>
-          <Switch value={genderPublic} onValueChange={setGenderPublic} />
-        </View>
-      </View>
-      <View style={styles.radioRow}>
-        <TouchableOpacity onPress={() => setGender('남')}><Text style={gender === '남' ? styles.radioSelected : styles.radio}>남</Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => setGender('여')}><Text style={gender === '여' ? styles.radioSelected : styles.radio}>여</Text></TouchableOpacity>
-      </View>
-
-      {/* 학과 */}
-      <View style={styles.rowBetween}>
-        <Text style={styles.sectionTitle}>학과</Text>
-        <View style={styles.switchRow}>
-          <Text>공개</Text>
-          <Switch value={majorPublic} onValueChange={setMajorPublic} />
-        </View>
-      </View>
-      <DropDownPicker
-        open={openMajor}
-        value={major}
-        items={majorItems}
-        setOpen={setOpenMajor}
-        setValue={setMajor}
-        setItems={setMajorItems}
-        placeholder="학과 선택"
-        listMode="SCROLLVIEW"
-        style={styles.dropdown}
-        dropDownContainerStyle={{ borderColor: '#ccc' }}
-      />
-
-      {/* 학년 */}
-      <View style={styles.rowBetween}>
-        <Text style={styles.sectionTitle}>학년</Text>
-        <View style={styles.switchRow}>
-          <Text>공개</Text>
-          <Switch value={gradePublic} onValueChange={setGradePublic} />
-        </View>
-      </View>
-      <View style={styles.radioRow}>
-        {['1', '2', '3', '4'].map(year => (
-          <TouchableOpacity key={year} onPress={() => setSelectedGrade(year)}>
-            <Text style={selectedGrade === year ? styles.radioSelected : styles.radio}>{year}학년</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* 휴학 여부 */}
-      <View style={styles.rowBetween}>
-        <Text style={styles.sectionTitle}>휴학 여부</Text>
-        <Switch value={isLeave} onValueChange={setIsLeave} />
-      </View>
-
-      {/* 회원가입 버튼 */}
-      <TouchableOpacity style={styles.button} onPress={handleSignUp}>
-        <Text style={styles.buttonText}>회원가입</Text>
-      </TouchableOpacity>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-// 스타일 정의
 const styles = StyleSheet.create({
-  container: { padding: 20, backgroundColor: '#fff' },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', marginTop: 15 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, marginTop: 8 },
-  inputHalf: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, marginTop: 8, flex: 1 },
-  button: { backgroundColor: '#001f3f', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 30 },
-  buttonText: { color: '#fff', fontSize: 16},
-  subButtonSmall: { backgroundColor: '#001f3f', padding: 8, borderRadius: 6, alignItems: 'center', marginLeft: 8, marginTop: 8 },
-  subButtonText: { color: '#fff'},
-  row: { flexDirection: 'row', alignItems: 'center' },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
-  radioRow: {flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', marginVertical: 10, gap: 10},
-  radio: {fontSize: 16, paddingVertical: 12, paddingHorizontal: 20, borderWidth: 1, borderColor: '#aaa', borderRadius: 12, marginHorizontal: 4, textAlign: 'center'},
-  radioSelected: {fontSize: 16, paddingVertical: 12, paddingHorizontal: 20, borderWidth: 1, borderColor: '#001f3f', backgroundColor: '#001f3f', color: '#fff', 
-    borderRadius: 12, marginHorizontal: 4, textAlign: 'center'},
-  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  dropdown: { borderColor: '#ccc', borderRadius: 8, marginTop: 8 },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: COLORS.card,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  content: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  switchLabel: {
+    fontSize: 14,
+    color: COLORS.textLight,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  inputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 14,
+    height: 52,
+    gap: 10,
+  },
+  input: {
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.text,
+  },
+  actionButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 52,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 90,
+  },
+  actionButtonSuccess: {
+    backgroundColor: COLORS.success,
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  optionRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  optionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    paddingVertical: 14,
+  },
+  optionButtonSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  optionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textLight,
+  },
+  optionTextSelected: {
+    color: '#fff',
+  },
+  dropdown: {
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: COLORS.card,
+    minHeight: 52,
+  },
+  dropdownContainer: {
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  gradeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  gradeButton: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  gradeButtonSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  gradeText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textLight,
+  },
+  gradeTextSelected: {
+    color: '#fff',
+  },
+  leaveRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  signUpButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 16,
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  signUpButtonText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '700',
+  },
 });

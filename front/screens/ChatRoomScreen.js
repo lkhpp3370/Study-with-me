@@ -1,369 +1,429 @@
-// ✅ ChatRoomScreen.js - 드래그 오류 해결용 TouchableWithoutFeedback 범위 수정
-import React, { useEffect, useState, useRef } from 'react';
+//수정완료
+import React, { useCallback, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, KeyboardAvoidingView, Platform, Modal,
-  Image, Keyboard, TouchableWithoutFeedback, SafeAreaView,
-  Switch, BackHandler
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  RefreshControl,
+  Switch,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import api from '../services/api';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
+import api from '../services/api';
+
+const COLORS = {
+  primary: '#4F46E5',
+  primaryLight: '#818CF8',
+  bg: '#F8FAFC',
+  card: '#FFFFFF',
+  text: '#0F172A',
+  textLight: '#475569',
+  muted: '#94A3B8',
+  border: '#E2E8F0',
+  success: '#10B981',
+  danger: '#EF4444',
+  warning: '#F59E0B',
+};
+
+function formatTimeAgo(isoOrDate) {
+  if (!isoOrDate) return '';
+  const d = new Date(isoOrDate);
+  const now = new Date();
+  const diff = (now - d) / 1000;
+  if (diff < 60) return '방금';
+  if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${m}/${day} ${hh}:${mm}`;
+}
 
 export default function ChatRoomScreen() {
-  const route = useRoute();
   const navigation = useNavigation();
-  const { roomId, studyTitle, userId: routeUserId } = route.params;
-  const [userId, setUserId] = useState(routeUserId);
-  const [hostId, setHostId] = useState(null);
 
-  const [messages, setMessages] = useState([]);
-  const [text, setText] = useState('');
-  const [image, setImage] = useState(null);
-  const [popupVisible, setPopupVisible] = useState(false);
-  const [notificationOn, setNotificationOn] = useState(true);
-  const [modalImageUri, setModalImageUri] = useState(null);
-  const [noticeInputVisible, setNoticeInputVisible] = useState(false);
-  const [noticeText, setNoticeText] = useState('');
-  const [voteModalVisible, setVoteModalVisible] = useState(false);
-  const [voteQuestion, setVoteQuestion] = useState('');
-  const [voteOptions, setVoteOptions] = useState(['', '']);
-  const [voteDeadline, setVoteDeadline] = useState(new Date(Date.now() + 86400000));
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [noticeMessage, setNoticeMessage] = useState(null);
-  const flatListRef = useRef();
+  const [userId, setUserId] = useState(null);
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    if (!routeUserId) {
-      AsyncStorage.getItem('userId').then((storedId) => {
-        if (storedId) setUserId(storedId);
-        else alert('유저 정보를 불러올 수 없습니다. 다시 로그인해주세요.');
-      });
+  const loadUserId = useCallback(async () => {
+    const stored =
+      (await AsyncStorage.getItem('userId')) ||
+      (await AsyncStorage.getItem('currentUserId'));
+    if (!stored) {
+      Alert.alert('로그인이 필요합니다');
+      navigation.navigate('Login');
+      return null;
     }
-  }, []);
+    setUserId(stored);
+    return stored;
+  }, [navigation]);
 
-  useEffect(() => {
-    fetchMessages();
-    fetchHost();
-  }, []);
+  const fetchRooms = useCallback(
+    async (uid) => {
+      try {
+        const id = uid || userId || (await loadUserId());
+        if (!id) return;
 
-  useEffect(() => {
-    if (userId && roomId) {
-      api.get(`/chat/${userId}/notifications`)
-        .then(res => {
-          const roomSetting = res.data?.[roomId];
-          if (typeof roomSetting === 'boolean') setNotificationOn(roomSetting);
-        })
-        .catch(err => console.error('알림 설정 조회 실패:', err));
-    }
-  }, [userId, roomId]);
+        const res = await api.get(`/chatroom/user/${id}`);
+        setRooms(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        console.error('채팅방 목록 로드 실패:', err?.response?.data || err.message);
+        Alert.alert('오류', '채팅방 목록을 불러오지 못했습니다.');
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [loadUserId, userId]
+  );
 
-  useEffect(() => {
-    if (userId && roomId) {
-      api.patch(`/chat/${userId}/notifications`, {
-        roomId,
-        enabled: notificationOn,
-      }).catch(err => console.error('알림 설정 저장 실패:', err));
-    }
-  }, [notificationOn]);
+  useFocusEffect(
+    useCallback(() => {
+      let mounted = true;
+      (async () => {
+        const id = await loadUserId();
+        if (mounted) await fetchRooms(id);
+      })();
+      return () => {
+        mounted = false;
+      };
+    }, [fetchRooms, loadUserId])
+  );
 
-  const fetchMessages = async () => {
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchRooms();
+  }, [fetchRooms]);
+
+  const toggleNotification = async (roomId, enabled) => {
     try {
-      const res = await api.get(`/chat/${roomId}/messages`);
-      setMessages(res.data);
-      const notice = await api.get(`/chat/${roomId}/notice`);
-      setNoticeMessage(notice.data);
+      await api.patch(`/chatroom/${roomId}/notification`, { userId, enabled });
+      setRooms(prev =>
+        prev.map(r => (r._id === roomId ? { ...r, notifyEnabled: enabled } : r))
+      );
     } catch (err) {
-      console.error('메시지 불러오기 실패:', err.message);
+      console.error("❌ 알림 토글 실패:", err);
+      Alert.alert("오류", "알림 설정을 변경하지 못했습니다.");
     }
   };
 
-  const fetchHost = async () => {
-    try {
-      const res = await api.get(`/chatroom/${roomId}/host`);
-      setHostId(res.data.hostId);
-    } catch (err) {
-      console.error('호스트 정보 불러오기 실패:', err.message);
-    }
-  };
+  const renderItem = ({ item }) => {
+    const memberCount = item?.memberCount || 0;
+    const last = item?.lastMessagePreview || '메시지가 없습니다';
+    const timeLabel = formatTimeAgo(item?.lastMessageAt);
+    const unread = item?.unreadCount || 0;
+    const notifyEnabled = item?.notifyEnabled ?? true;
 
-  const isUserHost = userId && hostId && userId === hostId;
+    return (
+      <TouchableOpacity
+        style={styles.chatCard}
+        activeOpacity={0.7}
+        onPress={() =>
+          navigation.navigate('채팅방', {
+            roomId: item._id,
+            studyId: item.studyId,
+          })
+        }
+      >
+        <View style={styles.chatLeft}>
+          <View style={styles.avatarWrap}>
+            <Ionicons name="people" size={24} color={COLORS.primary} />
+            {unread > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unread > 99 ? '99+' : unread}</Text>
+              </View>
+            )}
+          </View>
 
-  const sendMessage = async () => {
-    if (!text.trim() && !image) return;
-    const payload = {
-      message: text,
-      type: image ? 'image' : 'text',
-      roomId,
-      senderId: userId,
-      image: image || null,
-    };
-    try {
-      await api.post(`/chat/${roomId}`, payload);
-      setText('');
-      setImage(null);
-      fetchMessages();
-    } catch (err) {
-      console.error('메시지 전송 실패:', err.message);
-    }
-  };
+          <View style={styles.chatInfo}>
+            <View style={styles.chatTitleRow}>
+              <Text style={styles.chatTitle} numberOfLines={1}>
+                {item?.studyTitle || '스터디 채팅방'}
+              </Text>
+              <View style={styles.memberBadge}>
+                <Ionicons name="person" size={10} color={COLORS.muted} />
+                <Text style={styles.memberCount}>{memberCount}</Text>
+              </View>
+            </View>
 
-  const sendNotice = async () => {
-    if (!isUserHost) return alert('스터디장이 아닙니다.');
-    try {
-      await api.post(`/chat/${roomId}/notice`, {
-        roomId,
-        senderId: userId,
-        content: noticeText
-      });
-      setNoticeInputVisible(false);
-      setNoticeText('');
-      fetchMessages();
-    } catch (err) {
-      console.error('공지 작성 실패:', err.message);
-    }
-  };
+            <Text style={styles.lastMessage} numberOfLines={1}>
+              {last}
+            </Text>
 
-  const sendVote = async () => {
-    try {
-      await api.post(`/chat/${roomId}/vote`, {
-        senderId: userId,
-        content: voteQuestion,
-        voteOptions,
-        voteDeadline,
-      });
-      setVoteModalVisible(false);
-      setVoteQuestion('');
-      setVoteOptions(['', '']);
-      setVoteDeadline(new Date(Date.now() + 86400000));
-      fetchMessages();
-    } catch (err) {
-      console.error('투표 생성 실패:', err.message);
-    }
-  };
+            <View style={styles.metaRow}>
+              {!!timeLabel && (
+                <View style={styles.timeChip}>
+                  <Ionicons name="time-outline" size={12} color={COLORS.muted} />
+                  <Text style={styles.timeText}>{timeLabel}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
 
-  const handleImagePick = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, base64: true, allowsEditing: true, quality: 0.7 });
-    if (!result.canceled) {
-      const base64 = result.assets[0].base64;
-      setImage(`data:image/jpeg;base64,${base64}`);
-    }
-  };
-
-  useEffect(() => {
-    const backAction = () => {
-      if (popupVisible) { setPopupVisible(false); return true; }
-      if (noticeInputVisible) { setNoticeInputVisible(false); return true; }
-      if (voteModalVisible) { setVoteModalVisible(false); return true; }
-      return false;
-    };
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-    return () => backHandler.remove();
-  }, [popupVisible, noticeInputVisible, voteModalVisible]);
-
-  const renderMessage = ({ item }) => {
-    const isMe = item.sender?._id === userId || item.sender === userId;
-    if (item.type === 'image') return (
-      <TouchableOpacity onPress={() => setModalImageUri(item.content)}>
-        <Image source={{ uri: item.content }} style={{ width: 200, height: 200, marginVertical: 10 }} />
+        <View style={styles.chatRight}>
+          <View style={styles.notifyToggle}>
+            <Ionicons 
+              name={notifyEnabled ? 'notifications' : 'notifications-off'} 
+              size={18} 
+              color={notifyEnabled ? COLORS.primary : COLORS.muted} 
+            />
+            <Switch
+              value={notifyEnabled}
+              onValueChange={(val) => toggleNotification(item._id, val)}
+              trackColor={{ false: COLORS.border, true: COLORS.primaryLight }}
+              thumbColor={notifyEnabled ? COLORS.primary : '#f4f3f4'}
+              style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+            />
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={COLORS.muted} />
+        </View>
       </TouchableOpacity>
     );
-    if (item.type === 'poll') {
-      const poll = item.poll;
-      const question = poll?.question || item.content;
-      const options = poll?.options || [];
-      const deadlinePassed = poll?.deadline && new Date(poll.deadline) < new Date();
-      return (
-        <View style={{ backgroundColor: '#eef', padding: 10, marginVertical: 6, borderRadius: 6, maxWidth: '85%', alignSelf: isMe ? 'flex-end' : 'flex-start' }}>
-          <Text style={{ fontWeight: 'bold', fontSize: 14, marginBottom: 4 }}>📊 {question}</Text>
-          {options.map((opt, idx) => (
-            <TouchableOpacity
-              key={idx}
-              style={{ paddingVertical: 6, paddingHorizontal: 8, marginVertical: 2, backgroundColor: '#fff', borderRadius: 5 }}
-              disabled={deadlinePassed}
-              onPress={async () => {
-                try {
-                  await api.post(`/chat/vote/${item._id}`, { userId, selectedIndex: idx });
-                  fetchMessages();
-                } catch (e) {
-                  alert('투표 실패 또는 이미 참여함');
-                }
-              }}>
-              <Text>- {opt.text} {opt.votes ? `(${opt.votes.length}표)` : ''}</Text>
-            </TouchableOpacity>
-          ))}
-          {deadlinePassed && <Text style={{ marginTop: 4, fontSize: 12, color: 'gray' }}>마감된 투표입니다</Text>}
-          {isMe && !deadlinePassed && (
-            <TouchableOpacity
-              style={{ marginTop: 6, alignSelf: 'flex-end' }}
-              onPress={async () => {
-                try {
-                  await api.post(`/chat/vote/${item._id}/close`);
-                  fetchMessages();
-                } catch (e) {
-                  alert('조기 마감 실패');
-                }
-              }}>
-              <Text style={{ color: 'red', fontSize: 12 }}>⏹️ 투표 조기 마감</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      );
-    }
-    return (
-      <View style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', backgroundColor: isMe ? '#dcf8c6' : '#D7E9F7', borderRadius: 8, padding: 8, marginVertical: 4 }}>
-        <Text>{item.content?.slice(0, 100)}</Text>
-      </View>
-    );
   };
 
-  useEffect(() => {
-    navigation.setOptions({ title: studyTitle });
-  }, [studyTitle]);
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>채팅방을 불러오는 중</Text>
+      </View>
+    );
+  }
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={{ flex: 1 }}>
-          <SafeAreaView style={styles.container}>
-            {noticeMessage && (
-              <View style={styles.noticeBar}>
-                <Text style={{ fontWeight: 'bold' }}>📌 {noticeMessage.content}</Text>
-              </View>
-            )}
-            <FlatList
-              ref={flatListRef}
-              data={messages}
-              renderItem={renderMessage}
-              keyExtractor={(item) => item._id}
-              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-              onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
-              style={styles.messageList}
-              keyboardShouldPersistTaps="handled"
-            />
-
-            <View style={styles.inputBox}>
-              <TouchableOpacity onPress={() => setPopupVisible(!popupVisible)}>
-                <Ionicons name="add-circle-outline" size={24} color="gray" />
-              </TouchableOpacity>
-              <TextInput value={text} onChangeText={setText} placeholder="메시지 입력" style={styles.input} />
-              <TouchableOpacity onPress={sendMessage}>
-                <Ionicons name="send" size={24} color="#007AFF" />
-              </TouchableOpacity>
-            </View>
-            {popupVisible && (
-              <View style={styles.popupBox}>
-                <View style={styles.popupItem}><Text> 알림</Text><Switch value={notificationOn} onValueChange={setNotificationOn} /></View>
-                <View style={styles.divider} />
-                <TouchableOpacity onPress={() => setNoticeInputVisible(true)}><Text>공지 작성</Text></TouchableOpacity>
-                <View style={styles.divider} />
-                <TouchableOpacity onPress={() => setVoteModalVisible(true)}><Text>투표 작성</Text></TouchableOpacity>
-                <View style={styles.divider} />
-                <TouchableOpacity onPress={handleImagePick}><Text>이미지 보내기</Text></TouchableOpacity>
-              </View>
-            )}
-            <Modal visible={voteModalVisible} transparent={true} animationType="slide" onRequestClose={() => setVoteModalVisible(false)}>
-              <TouchableWithoutFeedback onPress={() => setVoteModalVisible(false)}>
-                <View style={styles.modalOverlay}>
-                  <TouchableWithoutFeedback>
-                    <View style={styles.voteModalBox}>
-                      <TextInput value={voteQuestion} onChangeText={setVoteQuestion} placeholder="질문 입력" style={styles.modalInput} />
-                      {voteOptions.map((opt, idx) => (
-                        <TextInput key={idx} value={opt} onChangeText={(v) => {
-                          const newOpts = [...voteOptions]; newOpts[idx] = v; setVoteOptions(newOpts);
-                        }} placeholder={`옵션 ${idx + 1}`} style={styles.modalInput} />
-                      ))}
-                      {voteOptions.length < 8 && (
-                        <TouchableOpacity onPress={() => setVoteOptions([...voteOptions, ''])}>
-                          <Text>+ 옵션 추가</Text>
-                        </TouchableOpacity>
-                      )}
-                      <TouchableOpacity onPress={() => setShowDatePicker(true)} style={{ marginVertical: 10 }}>
-                        <Text>마감일 선택: {voteDeadline.toLocaleDateString()}</Text>
-                      </TouchableOpacity>
-                      {showDatePicker && (
-                        <DateTimePicker
-                          value={voteDeadline}
-                          mode="date"
-                          display="default"
-                          onChange={(event, selectedDate) => {
-                            setShowDatePicker(false);
-                            if (selectedDate) setVoteDeadline(selectedDate);
-                          }}
-                        />
-                      )}
-                      <TouchableOpacity onPress={sendVote}><Text>투표 생성</Text></TouchableOpacity>
-                    </View>
-                  </TouchableWithoutFeedback>
-                </View>
-              </TouchableWithoutFeedback>
-            </Modal>
-          </SafeAreaView>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      {/* 헤더 */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>채팅</Text>
+        <View style={styles.headerBadge}>
+          <Text style={styles.headerBadgeText}>{rooms.length}</Text>
         </View>
-      </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
+      </View>
+
+      <FlatList
+        data={rooms}
+        keyExtractor={(item) => item._id}
+        renderItem={renderItem}
+        contentContainerStyle={[
+          styles.listContent,
+          rooms.length === 0 && styles.listContentEmpty
+        ]}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh}
+            tintColor={COLORS.primary}
+          />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="chatbubbles-outline" size={56} color={COLORS.muted} />
+            </View>
+            <Text style={styles.emptyTitle}>채팅방이 없습니다</Text>
+            <Text style={styles.emptyDesc}>
+              스터디에 가입하면{'\n'}자동으로 채팅방이 생성됩니다
+            </Text>
+          </View>
+        }
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  noticeBar: {
-    backgroundColor: '#FFFBE6',
-    padding: 8,
-    borderBottomWidth: 1,
-    borderColor: '#eee'
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
   },
-  messageList: { flex: 1, padding: 10 },
-  inputBox: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderTopWidth: 1,
-    borderColor: '#ccc',
-    padding: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: COLORS.card,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    gap: 10,
   },
-  input: {
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  headerBadge: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  headerBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  listContent: {
+    padding: 16,
+  },
+  listContentEmpty: {
     flex: 1,
-    marginLeft: 8,
   },
-  popupBox: {
-    position: 'absolute',
-    bottom: 60,
-    left: 16,
-    backgroundColor: 'fff',
-    borderRadius: 8,
-    padding: 12,
+  separator: {
+    height: 12,
+  },
+  chatCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  popupItem: {
+  chatLeft: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center'
-  },
-  divider: {
-    borderBottomWidth: 1,
-    borderColor: '#ddd',
-    marginVertical: 6,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: '#000000aa',
-    justifyContent: 'center',
     alignItems: 'center',
+    gap: 14,
+    flex: 1,
   },
-  voteModalBox: {
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 10,
-    width: '90%',
+  avatarWrap: {
+    position: 'relative',
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: `${COLORS.primary}15`,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  modalInput: {
-    borderBottomWidth: 1,
-    marginBottom: 12,
-    paddingVertical: 6
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: 11,
+    backgroundColor: COLORS.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.card,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  chatInfo: {
+    flex: 1,
+  },
+  chatTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  chatTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+    flex: 1,
+  },
+  memberBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: COLORS.bg,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  memberCount: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.muted,
+  },
+  lastMessage: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    marginBottom: 6,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  timeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  timeText: {
+    fontSize: 12,
+    color: COLORS.muted,
+    fontWeight: '500',
+  },
+  chatRight: {
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: 12,
+  },
+  notifyToggle: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.bg,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: COLORS.textLight,
+    fontWeight: '500',
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+  },
+  emptyIconWrap: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  emptyDesc: {
+    fontSize: 14,
+    color: COLORS.muted,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

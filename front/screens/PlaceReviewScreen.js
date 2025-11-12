@@ -6,7 +6,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
-import { BACKEND_URL } from '@env';
+import { BACKEND_URL } from '../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 function Star({ filled, size = 20, onPress }) {
   return (
@@ -23,12 +24,21 @@ export default function PlaceReviewScreen({ route, navigation }) {
   const [myRating, setMyRating] = useState(0);
   const [myComment, setMyComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [editingReview, setEditingReview] = useState(null);
+  const [userId, setUserId] = useState(null);
 
   const avgRating = useMemo(() => {
     if (!reviews.length) return 0;
     const sum = reviews.reduce((acc, r) => acc + (r.rating || 0), 0);
     return Math.round((sum / reviews.length) * 10) / 10;
   }, [reviews]);
+
+  useEffect(() => {
+    (async () => {
+      const uid = await AsyncStorage.getItem('userId');
+      if (uid) setUserId(uid);
+    })();
+  }, []);
 
   const fetchReviews = async () => {
     if (!placeId) return;
@@ -52,19 +62,28 @@ export default function PlaceReviewScreen({ route, navigation }) {
     }
     try {
       setSubmitting(true);
-      // POST /reviews/place/:placeId
+      const uid = await AsyncStorage.getItem('userId');
+      if (!uid) {
+        Alert.alert('실패', '로그인이 필요합니다.');
+        return;
+      }
+
       await axios.post(`${BACKEND_URL}/reviews/place/${placeId}`, {
-        // 실제 로그인 유저 ID로 바꿔 연결하면 좋음
-        userId: 'tester',
+        userId: uid,   // ✅ 실제 ObjectId
         rating: myRating,
         comment: myComment.trim(),
-      });
+      }); 
       setMyRating(0);
       setMyComment('');
       fetchReviews();
       Alert.alert('완료', '리뷰가 등록되었습니다.');
     } catch (e) {
-      Alert.alert('실패', '리뷰 등록에 실패했습니다.');
+      if (e.response?.data?.message === '이미 이 장소에 리뷰를 작성했습니다.') {
+       Alert.alert('알림', '이미 리뷰를 작성했습니다.');
+     } else {
+       console.error('리뷰 작성 오류', e.response?.data || e.message);
+       Alert.alert('실패', '리뷰 등록에 실패했습니다.');
+     }
     } finally {
       setSubmitting(false);
     }
@@ -75,6 +94,34 @@ export default function PlaceReviewScreen({ route, navigation }) {
     fetchReviews();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placeId]);
+
+  const updateReview = async (reviewId) => {
+    try {
+      await axios.patch(`${BACKEND_URL}/reviews/place/${placeId}/${reviewId}`, {
+        rating: myRating,
+        comment: myComment.trim(),
+      });
+      setMyRating(0);
+      setMyComment('');
+      setEditingReview(null);
+      fetchReviews();
+      Alert.alert('완료', '리뷰가 수정되었습니다.');
+    } catch (e) {
+      console.error('리뷰 수정 오류', e.response?.data || e.message);
+      Alert.alert('실패', '리뷰 수정에 실패했습니다.');
+    }
+  };
+
+  const deleteReview = async (reviewId) => {
+    try {
+      await axios.delete(`${BACKEND_URL}/reviews/place/${placeId}/${reviewId}`);
+      fetchReviews();
+      Alert.alert('완료', '리뷰가 삭제되었습니다.');
+    } catch (e) {
+      console.error('리뷰 삭제 오류', e.response?.data || e.message);
+      Alert.alert('실패', '리뷰 삭제에 실패했습니다.');
+    }
+  };
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -114,10 +161,13 @@ export default function PlaceReviewScreen({ route, navigation }) {
         />
         <TouchableOpacity
           style={[styles.submitBtn, submitting && { opacity: 0.6 }]}
-          onPress={submitReview}
+          onPress={() => {
+            if (editingReview) updateReview(editingReview._id);
+            else submitReview();
+          }}
           disabled={submitting}
         >
-          {submitting ? <ActivityIndicator /> : <Text style={styles.submitText}>등록</Text>}
+          {submitting ? <ActivityIndicator /> : <Text style={styles.submitText}>{editingReview ? '수정' : '등록'}</Text>}
         </TouchableOpacity>
       </View>
 
@@ -144,12 +194,28 @@ export default function PlaceReviewScreen({ route, navigation }) {
                         style={{ marginRight: 2 }}
                       />
                     ))}
+                    <Text style={styles.author}>{item.user?.username || '알 수 없음'}</Text>
                   </View>
                   <Text style={styles.dateText}>
                     {new Date(item.createdAt).toLocaleDateString()}
                   </Text>
                 </View>
                 {item.comment ? <Text style={styles.comment}>{item.comment}</Text> : null}
+
+                {userId === item.user?._id && (
+                  <View style={{ flexDirection: 'row', marginTop: 6, gap: 10 }}>
+                    <TouchableOpacity onPress={() => {
+                      setEditingReview(item);
+                      setMyRating(item.rating);
+                      setMyComment(item.comment);
+                    }}>
+                      <Text style={{ color: '#1f6feb' }}>수정</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => deleteReview(item._id)}>
+                      <Text style={{ color: 'red' }}>삭제</Text>
+                    </TouchableOpacity>
+                  </View>
+               )}
               </View>
             )}
             ListEmptyComponent={
@@ -169,6 +235,7 @@ const styles = StyleSheet.create({
   avgText: { marginLeft: 8, color: '#333', fontWeight: '600' },
 
   editor: { padding: 16, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#eee' },
+  author: { marginLeft: 8, fontSize: 13, fontWeight: '600', color: '#333' },
   sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
   starRow: { flexDirection: 'row', marginBottom: 8 },
   input: {
@@ -185,3 +252,4 @@ const styles = StyleSheet.create({
   dateText: { color: '#888', fontSize: 12 },
   comment: { color: '#222' },
 });
+

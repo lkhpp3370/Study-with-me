@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
-import { BACKEND_URL } from '@env';
+import { BACKEND_URL } from '../services/api';
 
 export default function ReviewScreen({ route }) {
   const { studyId, userId } = route.params;

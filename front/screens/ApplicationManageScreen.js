@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import axios from 'axios';
-import { BACKEND_URL } from '@env';
+import { BACKEND_URL } from '../services/api';
 
 export default function ApplicationManageScreen({ route }) {
   const { studyId, userId } = route.params; // hostId == userId
