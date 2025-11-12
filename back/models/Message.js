@@ -1,4 +1,4 @@
-// ✅ models/Message.js - 투표 필드 포함 최종본
+// models/Message.js
 const mongoose = require('mongoose');
 
 const pollOptionSchema = new mongoose.Schema({
@@ -20,12 +20,15 @@ const messageSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['text', 'image', 'notice', 'poll'],
+      enum: ['text', 'image', 'poll'], // ✅ notice 제거
       default: 'text',
     },
     content: {
       type: String,
-      required: true,
+      required: function () {
+        // 텍스트, 이미지일 때만 content 필요
+        return this.type === 'text' || this.type === 'image';
+      },
     },
     poll: {
       question: String,
@@ -38,6 +41,10 @@ const messageSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+
+    // ✅ 고정 시간 기록용 (optional)
+    pinnedAt: Date,
+
     createdAt: {
       type: Date,
       default: Date.now,

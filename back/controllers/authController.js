@@ -25,22 +25,29 @@ exports.loginUser = async (req, res) => {
       return res.status(401).json({ message: '아이디 또는 비밀번호가 일치하지 않습니다.' });
     }
 
+    // 💡 로그인 성공 시 세션에 사용자 정보 저장
+    req.session.user = user;
+    
+    // 💡 세션 정보가 잘 저장되었는지 확인하는 로그 추가
+    console.log('✅ 로그인 성공! 세션에 저장된 유저 정보:', req.session.user);
+
     res.json({ message: '로그인 성공', username: user.username, userId: user._id });
   } catch (err) {
     res.status(500).json({ message: '서버 오류', error: err.message });
   }
 };
 
-
 // ✅ 비밀번호 재설정 코드 요청
 exports.requestResetCode = async (req, res) => {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: String(email).toLowerCase().trim() });
     if (!user) return res.status(404).json({ message: '가입된 이메일이 없습니다.' });
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires = new Date(Date.now() + 5 * 60 * 1000); // 5분
     user.resetCode = code;
+    user.resetCodeExpires = expires;
     await user.save();
 
     await sendEmail(email, '[StudyWithMe] 비밀번호 재설정 코드', `비밀번호 재설정 코드: ${code}\n5분 내로 입력해 주세요.`);
@@ -55,9 +62,17 @@ exports.requestResetCode = async (req, res) => {
 exports.verifyResetCode = async (req, res) => {
   try {
     const { email, code } = req.body;
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: String(email).toLowerCase().trim() });
+    if (!user) return res.status(404).json({ message: '가입된 이메일이 없습니다.' });
 
-    if (!user || String(user.resetCode).trim() !== String(code).trim()) {
+    const now = new Date();
+    const valid =
+      typeof user.resetCode === 'string' &&
+      typeof code === 'string' &&
+      user.resetCode.trim() === code.trim() &&
+      user.resetCodeExpires && now <= user.resetCodeExpires;
+
+    if (!valid) {
       return res.status(400).json({ message: '인증 코드가 올바르지 않습니다.' });
     }
 
@@ -71,12 +86,21 @@ exports.verifyResetCode = async (req, res) => {
 exports.resetPassword = async (req, res) => {
   try {
     const { email, code, newPassword } = req.body;
-    const user = await User.findOne({ email });
-    if (!user || user.resetCode !== code) {
-      return res.status(400).json({ message: '인증 코드가 올바르지 않습니다.' });
-    }
-    user.password = newPassword;
+    const user = await User.findOne({ email: String(email).toLowerCase().trim() });
+    if (!user) return res.status(404).json({ message: '가입된 이메일이 없습니다.' });
+
+    const now = new Date();
+    const valid =
+      typeof user.resetCode === 'string' &&
+      typeof code === 'string' &&
+      user.resetCode.trim() === code.trim() &&
+      user.resetCodeExpires && now <= user.resetCodeExpires;
+
+    if (!valid) return res.status(400).json({ message: '인증 코드가 올바르지 않습니다.' });
+
+    user.password = newPassword;      // ⚠️ 해싱 적용 예정이라면 여기서 bcrypt 등 사용
     user.resetCode = null;
+    user.resetCodeExpires = null;
     await user.save();
     res.json({ message: '비밀번호 변경 성공' });
   } catch (err) {
