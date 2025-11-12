@@ -22,7 +22,7 @@ const Review = require('./models/Review');
 // 📌 장소추천 관련 모델
 const Place = require('./models/Place');
 const PlaceReview = require('./models/PlaceReview');
-const FavoritePlace = require('./models/FavoritePlace');
+const Favorite = require('./models/Favorite');
 
 async function seedDatabase() {
   try {
@@ -48,7 +48,7 @@ async function seedDatabase() {
       Review.deleteMany({}),
       Place.deleteMany({}),
       PlaceReview.deleteMany({}),
-      FavoritePlace.deleteMany({})
+      Favorite.deleteMany({})
     ]);
     console.log('✅ 기존 데이터 삭제 완료');
 
@@ -423,7 +423,7 @@ async function seedDatabase() {
     console.log('✅ 장소 리뷰 생성 완료');
 
     // 🟢 즐겨찾기
-    await FavoritePlace.insertMany([
+    await Favorite.insertMany([
       { user: user1._id, place: places[0]._id },
       { user: user2._id, place: places[1]._id },
       { user: user3._id, place: places[2]._id },

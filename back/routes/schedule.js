@@ -23,4 +23,6 @@ router.get('/creator/:userId', scheduleController.getSchedulesByCreator);
 // 📌 단일 일정 조회 (참여자 + canCheck 포함)
 router.get('/:scheduleId', scheduleController.getScheduleById);
 
+router.delete('/:scheduleId/:userId', scheduleController.deleteSchedule);
+
 module.exports = router;
