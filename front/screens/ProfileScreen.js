@@ -203,7 +203,6 @@ const ProfileScreen = ({ route }) => {
                   <Text style={styles.userInfo}>
                     {profileData.major ?? '학과 없음'} {profileData.grade ? `${profileData.grade}학년` : ''}
                   </Text>
-                  <Text style={styles.userEmail}>{profileData.email}</Text>
                 </View>
               </View>
 
@@ -308,11 +307,6 @@ const styles = StyleSheet.create({
   userInfo: { 
     fontSize: 14, 
     color: '#7986CB', // 연한 인디고
-    marginTop: 4,
-  },
-  userEmail: { 
-    fontSize: 14, 
-    color: '#999', 
     marginTop: 4,
   },
   bioSection: {
