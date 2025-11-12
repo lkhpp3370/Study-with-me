@@ -97,24 +97,54 @@ const Studyroommain = ({ navigation, route }) => {
 
   const fetchData = useCallback(async () => {
     try {
+      console.log('[Studyroommain] route.params =', route?.params);
+      if (!studyId) {
+        Alert.alert('오류', 'studyId가 비어 있습니다. 이전 화면에서 다시 진입해주세요.');
+        return;
+      }
+
       const currentUserId = await AsyncStorage.getItem('userId');
-      const [filesRes, scheduleRes, postsRes, studyRes] = await Promise.all([
-        api.get(`/studies/${studyId}/files`),
-        api.get(`/schedule/study/${studyId}`),
-        api.get(`/api/posts/study/${studyId}`),
-        api.get(`/studies/${studyId}`),
-      ]);
 
-      setFiles(filesRes.data);
-      setSchedules(Array.isArray(scheduleRes.data) ? scheduleRes.data : []);
-      setPosts(postsRes.data);
-      setStudyInfo(studyRes.data);
-      setMembers(studyRes.data.members);
+      const reqs = [
+        { key: 'files',    url: `/studies/${studyId}/files` },
+        { key: 'schedule', url: `/schedule/study/${studyId}` },
+        { key: 'posts',    url: `/api/posts/study/${studyId}` },
+        { key: 'study',    url: `/studies/${studyId}` },
+      ];
+      console.log('[Studyroommain] GET URLs =', reqs.map(r=>r.url));
+      const settled = await Promise.allSettled(reqs.map(r => api.get(r.url)));
+      
+      const fails = settled
+        .map((res, i) => ({ res, req: reqs[i] }))
+        .filter(({ res }) => res.status === 'rejected');
+      if (fails.length) {
+        const msg = fails.map(({ req, res }) => {
+          const st = res.reason?.response?.status;
+          const detail = res.reason?.response?.data?.message || res.reason?.message || '';
+          return `• ${req.url} → ${st || 'ERR'} ${detail}`;
+        }).join('\n');
+        console.warn('❌ Studyroom fetch fails:\n' + msg);
+        Alert.alert('일부 데이터 로드 실패', msg);
+      }
 
-      if (currentUserId && studyRes.data.host && studyRes.data.host._id === currentUserId) {
-        setIsHost(true);
-      } else {
-        setIsHost(false);
+      const pick = (k) => {
+        const i = reqs.findIndex(r => r.key === k);
+        return settled[i];
+      };
+
+      const filesRes    = pick('files');
+      const scheduleRes = pick('schedule');
+      const postsRes    = pick('posts');
+      const studyRes    = pick('study');
+
+      if (filesRes.status === 'fulfilled') setFiles(filesRes.value.data);
+      if (scheduleRes.status === 'fulfilled') setSchedules(Array.isArray(scheduleRes.value.data) ? scheduleRes.value.data : []);
+      if (postsRes.status === 'fulfilled') setPosts(postsRes.value.data);
+      if (studyRes.status === 'fulfilled') {
+        setStudyInfo(studyRes.value.data);
+        setMembers(studyRes.value.data?.members || []);
+        const hostId = studyRes.value.data?.host?._id;
+        setIsHost(!!currentUserId && !!hostId && hostId === currentUserId);
       }
     } catch (err) {
       console.error('데이터 불러오기 실패:', err);
