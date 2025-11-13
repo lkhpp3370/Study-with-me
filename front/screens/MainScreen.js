@@ -84,6 +84,7 @@ export default function MainScreen() {
   const [weekStart, setWeekStart] = useState(() => startOfWeekMon(new Date()));
   const [showWeekPicker, setShowWeekPicker] = useState(false);
 
+  const [currentUserId, setCurrentUserId] = useState(null);
   /** 뒤로가기 종료 */
   useFocusEffect(
     useCallback(() => {
@@ -104,11 +105,14 @@ export default function MainScreen() {
       const name = await AsyncStorage.getItem('userName');
       const userId = await AsyncStorage.getItem('userId');
       if (name) setUserName(name);
+      
+      // ✅ userId를 상태에 저장
+      if (userId) setCurrentUserId(userId); 
       if (!userId) return;
 
       const [studyRes, routineRes] = await Promise.all([
-        api.get(`/main/${userId}`),     // { studies, schedules }
-        api.get(`/routine/${userId}`),  // Routine[]
+        api.get(`/main/${userId}`),     // { studies, schedules }
+        api.get(`/routine/${userId}`),  // Routine[]
       ]);
       setStudyGroups(studyRes.data?.studies ?? []);
       setSchedules(studyRes.data?.schedules ?? []);
@@ -118,6 +122,7 @@ export default function MainScreen() {
     } finally {
       setRefreshing(false);
     }
+    // ✅ 의존성: useCallback의 의존성 배열은 비워둡니다 (함수 내부의 값은 변경되지 않으므로).
   }, []);
 
   // 최초 1회
@@ -131,29 +136,75 @@ export default function MainScreen() {
 
   /** 스터디 일정 → 시간표 포맷 */
   const studySchedules = useMemo(() => {
-    return (schedules || []).map(s => {
-      const base = s.startDate ? new Date(s.startDate) : new Date();
-      const shouldShow = s.repeatWeekly
-        ? isAfterOrSameWeek(weekStart, base)
-        : isSameWeek(weekStart, base);
-      if (!shouldShow) return null;
+    // schedules 배열을 반환하기 전에 filter()를 먼저 사용하여 참여 여부를 확인합니다.
+    return (schedules || [])
+      // ✅ 1. 필터링 로직 추가: currentUserId가 participants 배열에 포함된 일정만 남깁니다.
+      .filter(s => s.participants && s.participants.includes(currentUserId))
+      .map(s => {
+        const base = s.startDate ? new Date(s.startDate) : new Date();
+        const shouldShow = s.repeatWeekly
+          ? isAfterOrSameWeek(weekStart, base)
+          : isSameWeek(weekStart, base);
+        if (!shouldShow) return null;
 
-      const { h: sh, m: sm } = parseHHmm(s.startTime);
-      const { h: eh, m: em } = parseHHmm(s.endTime);
+        const { h: sh, m: sm } = parseHHmm(s.startTime);
+        const { h: eh, m: em } = parseHHmm(s.endTime);
 
-      return {
-        _id: s._id,
-        title: s.title,
-        description: s.description,
-        location: s.location,
-        study: s.study,
-        day: s.dayOfWeek === 0 ? '일' : daysKo[s.dayOfWeek - 1],
-        start: sh + sm / 60,
-        end: eh + em / 60,
-        type: 'study',
-      };
-    }).filter(Boolean);
-  }, [schedules, weekStart]);
+        return {
+          _id: s._id,
+          title: s.title,
+          description: s.description,
+          location: s.location,
+          study: s.study,
+          day: s.dayOfWeek === 0 ? '일' : daysKo[s.dayOfWeek - 1],
+          start: sh + sm / 60,
+          end: eh + em / 60,
+          type: 'study',
+        };
+      })
+      .filter(Boolean);
+    // ✅ 2. 의존성 배열에 currentUserId 추가 (currentUserId 값이 변경되면 재계산)
+  }, [schedules, weekStart, currentUserId]);
+
+  /** ✅ 오늘의 스터디 일정 (참여 여부 필터링 포함) */
+  const todaySchedules = useMemo(() => {
+    const today = new Date();
+    const todayDow = today.getDay(); // 0(일) ~ 6(토)
+    const currentWeekStart = startOfWeekMon(today);
+    
+    // ✅ 1. 참여자 필터링: 현재 사용자가 포함된 일정만 남깁니다.
+    const userParticipatingSchedules = (schedules || []).filter(s => 
+      s.participants && s.participants.includes(currentUserId)
+    );
+
+    return userParticipatingSchedules
+      .map(s => {
+        const base = s.startDate ? new Date(s.startDate) : new Date();
+        const { h: sh, m: sm } = parseHHmm(s.startTime);
+        const { h: eh, m: em } = parseHHmm(s.endTime);
+
+        // 2. 요일이 오늘과 일치해야 함
+        // dayOfWeek: 0=일요일, 1=월요일 ... 6=토요일
+        if (s.dayOfWeek !== todayDow) return null; 
+        
+        // 3. 주차 조건 확인
+        const shouldShow = s.repeatWeekly
+          ? isAfterOrSameWeek(currentWeekStart, base)
+          : isSameWeek(currentWeekStart, base);
+        
+        if (!shouldShow) return null;
+
+        return {
+          _id: s._id,
+          title: s.title,
+          description: s.description,
+          location: s.location,
+          start: sh + sm / 60,
+          end: eh + em / 60,
+        };
+      }).filter(Boolean);
+    // ✅ 4. 의존성 추가
+  }, [schedules, currentUserId]);
 
   /** 루틴 → 시간표 포맷 */
   const routines = useMemo(() => {
@@ -349,15 +400,19 @@ export default function MainScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="calendar" size={20} color={COLORS.primary} />
-            <Text style={styles.sectionTitle}>이번 주 스터디 일정</Text>
+            {/* 텍스트 수정 */}
+            <Text style={styles.sectionTitle}>오늘의 스터디 일정</Text>
           </View>
-          {studySchedules.length === 0 ? (
+          {/* todaySchedules로 변경 */}
+          {todaySchedules.length === 0 ? (
             <View style={styles.emptyCard}>
               <Ionicons name="calendar-outline" size={32} color={COLORS.muted} />
-              <Text style={styles.emptyText}>이번 주 스터디 일정이 없습니다</Text>
+              {/* 텍스트 수정 */}
+              <Text style={styles.emptyText}>오늘 스터디 일정이 없습니다</Text>
             </View>
           ) : (
-            studySchedules.map((s) => (
+            // todaySchedules로 변경
+            todaySchedules.map((s) => (
               <View key={s._id} style={styles.scheduleCard}>
                 <View style={styles.scheduleLeft}>
                   <View style={styles.scheduleIcon}>
@@ -368,6 +423,7 @@ export default function MainScreen() {
                     <Text style={styles.scheduleDetail}>
                       <Ionicons name="location" size={12} /> {s.location || '장소 미정'}
                     </Text>
+                    {/* 시간 표시 */}
                     <Text style={styles.scheduleDetail}>
                       <Ionicons name="time" size={12} /> {Math.floor(s.start)}:00 ~ {Math.floor(s.end)}:00
                     </Text>

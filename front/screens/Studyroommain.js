@@ -29,27 +29,66 @@ const Studyroommain = ({ navigation, route }) => {
   const [isHost, setIsHost] = useState(false);
   const [members, setMembers] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [studyMembers, setStudyMembers] = useState([]);
 
-  const handleLeaveStudy = async () => {
-    if (isHost) {
-      Alert.alert("경고","방장은 스터디를 나가기 전에 다른 스터디원에게 방장 권한을 위임해야 합니다.",[{ text: "확인" }]);
-      return;
-    }
-    try {
-      const currentUserId = await AsyncStorage.getItem('userId');
-      if (!currentUserId) {
-        Alert.alert('오류', '로그인 상태를 확인해주세요.');
-        return;
-      }
-      await api.delete(`/studies/${studyId}/members/${currentUserId}`);
-      Alert.alert('알림', '성공적으로 스터디를 나갔습니다.', [
-        { text: '확인', onPress: () => navigation.goBack() }
-      ]);
-    } catch (error) {
-      console.error('스터디 나가기 실패:', error);
-      Alert.alert('오류', '스터디를 나가는 도중 오류가 발생했습니다.');
-    }
-  };
+  // screens/Studyroommain.js (Studyroommain 컴포넌트 내부)
+
+  const handleLeaveStudy = async () => {
+    const currentUserId = await AsyncStorage.getItem('userId');
+    if (!currentUserId) {
+      Alert.alert('오류', '로그인 상태를 확인해주세요.');
+      return;
+    }
+
+    // 1. 스터디장인 경우
+    if (isHost) {
+        // ✅ 수정된 로직: 멤버 수가 1명(방장 자신만 남았을 경우)인지 확인
+      if (members.length === 1) { 
+            // 방장만 남았으므로, 스터디 삭제 API를 호출합니다.
+            // 백엔드 studyController.js에 따르면, 호스트가 나갈 때 멤버 수가 1명이고 호스트인 경우 스터디가 삭제됩니다.
+          Alert.alert(
+            '알림',
+            '스터디원 본인 외에 다른 멤버가 없어, 스터디를 탈퇴하시면 스터디가 바로 삭제됩니다. 계속하시겠습니까?',
+            [
+              { text: "취소", style: "cancel" },
+              { 
+                text: "삭제 및 탈퇴", 
+                style: "destructive",
+                onPress: async () => {
+                  try {
+                        // 백엔드: DELETE /studies/:studyId/members/:memberId
+                    await api.delete(`/studies/${studyId}/members/${currentUserId}`);
+                    Alert.alert('알림', '성공적으로 스터디가 삭제되었습니다.', [
+                      { text: '확인', onPress: () => navigation.goBack() }
+                    ]);
+                  } catch (error) {
+                    console.error('스터디 삭제 실패:', error);
+                    Alert.alert('오류', '스터디를 삭제하는 도중 오류가 발생했습니다.');
+                  }
+                }
+              }
+            ]
+          );
+          return;
+      } else {
+            // 방장 외에 멤버가 남았을 경우 (기존 로직 유지)
+          Alert.alert("경고","방장은 스터디를 나가기 전에 다른 스터디원에게 방장 권한을 위임해야 합니다.",[{ text: "확인" }]);
+          return;
+      }
+    } 
+    // 2. 스터디원인 경우 (기존 로직 유지)
+    // ... (기존 스터디원 탈퇴 로직) ...
+    try {
+      // 방장이 아닌 스터디원은 바로 탈퇴
+      await api.delete(`/studies/${studyId}/members/${currentUserId}`);
+      Alert.alert('알림', '성공적으로 스터디를 나갔습니다.', [
+        { text: '확인', onPress: () => navigation.goBack() }
+      ]);
+    } catch (error) {
+      console.error('스터디 나가기 실패:', error);
+      Alert.alert('오류', '스터디를 나가는 도중 오류가 발생했습니다.');
+    }
+  };
 
   const handleDelegateHost = async (newHostId, newHostName) => {
     Alert.alert(
@@ -106,10 +145,10 @@ const Studyroommain = ({ navigation, route }) => {
       const currentUserId = await AsyncStorage.getItem('userId');
 
       const reqs = [
-        { key: 'files',    url: `/studies/${studyId}/files` },
+        { key: 'files',    url: `/studies/${studyId}/files` },
         { key: 'schedule', url: `/schedule/study/${studyId}` },
-        { key: 'posts',    url: `/api/posts/study/${studyId}` },
-        { key: 'study',    url: `/studies/${studyId}` },
+        { key: 'posts',    url: `/api/posts/study/${studyId}` },
+        { key: 'study',    url: `/studies/${studyId}` },
       ];
       console.log('[Studyroommain] GET URLs =', reqs.map(r=>r.url));
       const settled = await Promise.allSettled(reqs.map(r => api.get(r.url)));
@@ -132,25 +171,56 @@ const Studyroommain = ({ navigation, route }) => {
         return settled[i];
       };
 
-      const filesRes    = pick('files');
+      const filesRes    = pick('files');
       const scheduleRes = pick('schedule');
-      const postsRes    = pick('posts');
-      const studyRes    = pick('study');
+      const postsRes    = pick('posts');
+      const studyRes    = pick('study');
 
       if (filesRes.status === 'fulfilled') setFiles(filesRes.value.data);
-      if (scheduleRes.status === 'fulfilled') setSchedules(Array.isArray(scheduleRes.value.data) ? scheduleRes.value.data : []);
-      if (postsRes.status === 'fulfilled') setPosts(postsRes.value.data);
+      
+      let members = [];
       if (studyRes.status === 'fulfilled') {
         setStudyInfo(studyRes.value.data);
-        setMembers(studyRes.value.data?.members || []);
+        members = studyRes.value.data?.members || []; // ✅ 멤버 목록 저장
+        setMembers(members);
         const hostId = studyRes.value.data?.host?._id;
         setIsHost(!!currentUserId && !!hostId && hostId === currentUserId);
       }
+      
+      if (scheduleRes.status === 'fulfilled') {
+        const rawSchedules = Array.isArray(scheduleRes.value.data) ? scheduleRes.value.data : [];
+        
+        const schedulesWithHostName = rawSchedules.map(schedule => {
+            let hostName = '알 수 없음'; // 기본값으로 '알 수 없음'을 설정하여 빈 문자열 방지
+            
+            // 1. createdBy가 ID 문자열인 경우, members 배열에서 호스트를 찾습니다.
+            if (typeof schedule.createdBy === 'string') {
+                const host = members.find(m => String(m._id) === schedule.createdBy);
+                if (host) {
+                    // host.name을 우선 사용하고, 없으면 host.username을 사용하며, 둘 다 없으면 기본값('알 수 없음') 유지
+                    hostName = host.name || host.username || hostName;
+                }
+            } 
+            // 2. createdBy가 이미 populate된 객체인 경우 (백엔드 구조에 따라 다름)
+            else if (typeof schedule.createdBy === 'object' && schedule.createdBy !== null) {
+                hostName = schedule.createdBy.name || schedule.createdBy.username || hostName;
+            }
+            
+            return {
+                ...schedule,
+                // 최종 호스트 이름을 할당
+                hostName: hostName, 
+            };
+        });
+        
+        setSchedules(schedulesWithHostName);
+      } // else: schedules 로드 실패 시 setSchedules는 실행되지 않음
+      
     } catch (err) {
       console.error('데이터 불러오기 실패:', err);
       Alert.alert('오류', '데이터를 불러오는데 실패했습니다.');
     }
-  }, [studyId]);
+  }, [studyId]); // studyId 의존성 유지
 
   useFocusEffect(
     useCallback(() => {
@@ -266,7 +336,7 @@ const Studyroommain = ({ navigation, route }) => {
                   <View style={styles.infoRow}>
                     <Ionicons name="person" size={14} color="#666" />
                     <Text style={styles.infoText}>
-                      {sch.createdBy?.username || '알 수 없음'}
+                      {sch.hostName}
                     </Text>
                   </View>
                   <View style={styles.infoRow}>

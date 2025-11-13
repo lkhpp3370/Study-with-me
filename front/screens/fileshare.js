@@ -7,7 +7,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
 import * as Linking from 'expo-linking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
@@ -332,10 +332,8 @@ export default function FileShare({ route }) {
     if (DESIGN_ONLY) return Alert.alert('디자인 모드', '업로드 기능은 비활성화되어 있습니다.');
     if (!currentUserId) return Alert.alert('오류', '로그인 정보를 찾을 수 없습니다.');
 
-    // ✅ 폴더 미선택 업로드 방지 (403 대신 사용자 안내)
     if (!selectedFolderId) {
       if ((folders?.length || 0) === 0) {
-        // 폴더가 하나도 없으면 생성 모달 열어주기
         Alert.alert(
           '폴더가 없습니다',
           '업로드하려면 먼저 폴더를 만들어 주세요.',
@@ -345,10 +343,9 @@ export default function FileShare({ route }) {
           ]
         );
       } else {
-        // 폴더는 있으나 선택되지 않은 경우
         Alert.alert('폴더 선택 필요', '파일을 업로드할 폴더를 먼저 선택해 주세요.');
       }
-      return; // ⛔️ API 호출 막아서 403 방지
+      return;
     }
 
     try {
@@ -357,13 +354,11 @@ export default function FileShare({ route }) {
 
       const file = result.assets[0];
       const { uri, name, mimeType } = file;
-      const info = await FileSystem.getInfoAsync(uri);
-      if (!info.exists) return Alert.alert('파일 오류', '파일이 존재하지 않습니다.');
+      
 
       const formData = new FormData();
       formData.append('title', name);
       formData.append('file', { uri, name, type: mimeType || 'application/octet-stream' });
-      // ✅ 선택된 폴더를 항상 명시
       formData.append('folderId', selectedFolderId);
       formData.append('uploader', currentUserId);
 

@@ -66,8 +66,8 @@ export default function LoginScreen() {
             <View style={styles.logoContainer}>
               <Ionicons name="school-outline" size={64} color="#4C63D2" />
             </View>
-            <Text style={styles.appTitle}>StudyHub</Text>
-            <Text style={styles.subtitle}>스터디를 함께하는 공간</Text>
+            <Text style={styles.appTitle}>StudyLink</Text>
+            <Text style={styles.subtitle}>스터디가 필요한 순간 함께할 사람을 링크하다</Text>
           </View>
 
           <View style={styles.formContainer}>

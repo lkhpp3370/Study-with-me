@@ -5,6 +5,54 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
 
+// ---------- KST Time Utilities ----------
+
+// 시간을 '오전 09:00' 형태로 포맷하는 함수 (HH:MM -> 오전/오후 HH:MM)
+const formatTimeKo = (timeString) => {
+    const [h, m] = timeString.split(':').map(Number);
+    const ampm = h < 12 ? '오전' : '오후';
+    const hour = h % 12 === 0 ? 12 : h % 12; // 0시 -> 12시, 13시 -> 1시
+    return `${ampm} ${String(hour).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+
+// KST 기반으로 출석 체크 유효 시간 내에 있는지 확인하는 함수 (시작 10분 전 ~ 종료 10분 후)
+const isWithinKstCheckWindow = (schedule) => {
+    // KST 오프셋 (9시간)
+    const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+    
+    // 현재 한국 시간 (KST)
+    const NOW_KST = Date.now() + KST_OFFSET_MS;
+    
+    // UTC 파싱 후 KST 오프셋을 더하여 KST 시간(MS)을 얻는 헬퍼
+    const parseKST = (dateStr, timeStr) => {
+        // 'YYYY-MM-DDT' + 'HH:MM:00.000Z' 형태로 조합하여 UTC로 파싱
+        const utcDateString = `${dateStr}T${timeStr}:00.000Z`;
+        const utcTime = new Date(utcDateString).getTime();
+        
+        // UTC 시간을 KST로 변환
+        return utcTime + KST_OFFSET_MS;
+    };
+
+    // 출석 체크 유효 시간 설정 (10분)
+    const CHECK_WINDOW_MINUTES = 10;
+    const CHECK_WINDOW_MS = CHECK_WINDOW_MINUTES * 60 * 1000;
+
+    // KST 기준으로 시작/종료 시간 계산
+    const startTimeKST = parseKST(schedule.startDate, schedule.startTime);
+    const endTimeKST = parseKST(schedule.startDate, schedule.endTime);
+
+    // 체크 시작 시간 (시작 10분 전)
+    const checkStartKST = startTimeKST - CHECK_WINDOW_MS;
+    // 체크 종료 시간 (종료 10분 후)
+    const checkEndKST = endTimeKST + CHECK_WINDOW_MS;
+
+    // 현재 KST가 체크 시작 시간과 종료 시간 사이에 있는지 확인
+    return NOW_KST >= checkStartKST && NOW_KST <= checkEndKST;
+};
+
+// ------------------------------------------
+
+
 export default function AttendanceCheckScreen() {
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +93,9 @@ export default function AttendanceCheckScreen() {
   };
 
   const getScheduleStatus = (schedule) => {
+    // ✅ KST 기반으로 체크 가능 여부를 새로 계산
+    const isKstCheckable = isWithinKstCheckWindow(schedule);
+
     if (schedule.type === 'past') {
       return {
         icon: 'checkmark-done-circle',
@@ -52,7 +103,7 @@ export default function AttendanceCheckScreen() {
         bgColor: '#ECFDF5',
         text: '종료됨',
       };
-    } else if (schedule.canCheck) {
+    } else if (isKstCheckable) { // ✅ KST 기반 체크 사용
       return {
         icon: 'play-circle',
         color: '#4C63D2',
@@ -104,11 +155,25 @@ export default function AttendanceCheckScreen() {
             {schedules.map((s, i) => {
               const status = getScheduleStatus(s);
               const isPast = s.type === 'past';
-              const dateStr = new Date(s.startDate).toLocaleDateString('ko-KR', {
+              
+              // ✅ KST 기준 날짜 객체 생성 (UTC+9 보정)
+              const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+              const kstDate = new Date(new Date(s.startDate).getTime() + KST_OFFSET_MS); 
+
+              // ✅ KST 기준으로 날짜/요일 표시
+              const dateStr = kstDate.toLocaleDateString('ko-KR', {
                 month: 'short',
                 day: 'numeric',
               });
-              const dayStr = new Date(s.startDate).toLocaleDateString('ko-KR', { weekday: 'short' });
+              const dayStr = kstDate.toLocaleDateString('ko-KR', { weekday: 'short' });
+              
+              // ✅ KST 기반 체크 가능 여부
+              const isKstCheckable = isWithinKstCheckWindow(s);
+              
+              // ✅ KST 포맷으로 시작/종료 시간 표시
+              const formattedStartTime = formatTimeKo(s.startTime);
+              const formattedEndTime = formatTimeKo(s.endTime);
+
 
               return (
                 <TouchableOpacity
@@ -148,9 +213,14 @@ export default function AttendanceCheckScreen() {
                         </View>
                       </View>
                     ) : (
-                      <Text style={styles.scheduleSubtitle}>
-                        {s.canCheck ? '출석 체크 가능' : '아직 체크 시간이 아닙니다'}
-                      </Text>
+                      <View>
+                        <Text style={styles.scheduleSubtitle}>
+                          {formattedStartTime} ~ {formattedEndTime} ({s.location || '장소 미정'})
+                        </Text>
+                        <Text style={styles.scheduleSubtitle}>
+                          {isKstCheckable ? '출석 체크 가능' : '아직 체크 시간이 아닙니다'}
+                        </Text>
+                    </View>
                     )}
                   </View>
 

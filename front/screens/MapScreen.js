@@ -644,11 +644,11 @@ export default function MapScreen({ route, navigation }) {
                 </TouchableOpacity>
               ))}
             </View>
-            <TextInput style={styles.modalInput} placeholder="장소 이름 (필수)" value={newName} onChangeText={setNewName} />
-            <TextInput style={styles.modalInput} placeholder="도로명 주소 (필수)" value={newAddr} onChangeText={setNewAddr} />
-            <TextInput style={styles.modalInput} placeholder="운영시간 (예: 09:00~22:00)" value={newHours} onChangeText={setNewHours} />
-            <TextInput style={styles.modalInput} placeholder="테이블 수 (예: 12)" value={newTables} onChangeText={setNewTables} keyboardType="numeric" />
-            <TextInput style={styles.modalInput} placeholder="콘센트 수 (예: 8)" value={newOutlets} onChangeText={setNewOutlets} keyboardType="numeric" />
+            <TextInput style={styles.modalInput} placeholder="장소 이름 (필수)" placeholderTextColor={'#783b3bff'} value={newName} onChangeText={setNewName} />
+            <TextInput style={styles.modalInput} placeholder="도로명 주소 (필수)" placeholderTextColor={'#783b3bff'} value={newAddr} onChangeText={setNewAddr} />
+            <TextInput style={styles.modalInput} placeholder="운영시간 (예: 09:00~22:00)" placeholderTextColor={'#783b3bff'} value={newHours} onChangeText={setNewHours} />
+            <TextInput style={styles.modalInput} placeholder="테이블 수 (예: 12)" placeholderTextColor={'#783b3bff'} value={newTables} onChangeText={setNewTables} keyboardType="numeric" />
+            <TextInput style={styles.modalInput} placeholder="콘센트 수 (예: 8)" placeholderTextColor={'#783b3bff'} value={newOutlets} onChangeText={setNewOutlets} keyboardType="numeric" />
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
               <Text style={{ marginRight: 8 }}>Wi-Fi 있음</Text>
               <TouchableOpacity
