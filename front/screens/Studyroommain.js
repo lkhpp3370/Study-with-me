@@ -33,62 +33,62 @@ const Studyroommain = ({ navigation, route }) => {
 
   // screens/Studyroommain.js (Studyroommain 컴포넌트 내부)
 
-  const handleLeaveStudy = async () => {
-    const currentUserId = await AsyncStorage.getItem('userId');
-    if (!currentUserId) {
-      Alert.alert('오류', '로그인 상태를 확인해주세요.');
-      return;
-    }
+  const handleLeaveStudy = async () => {
+    const currentUserId = await AsyncStorage.getItem('userId');
+    if (!currentUserId) {
+      Alert.alert('오류', '로그인 상태를 확인해주세요.');
+      return;
+    }
 
-    // 1. 스터디장인 경우
-    if (isHost) {
+    // 1. 스터디장인 경우
+    if (isHost) {
         // ✅ 수정된 로직: 멤버 수가 1명(방장 자신만 남았을 경우)인지 확인
-      if (members.length === 1) { 
+      if (members.length === 1) { 
             // 방장만 남았으므로, 스터디 삭제 API를 호출합니다.
             // 백엔드 studyController.js에 따르면, 호스트가 나갈 때 멤버 수가 1명이고 호스트인 경우 스터디가 삭제됩니다.
-          Alert.alert(
-            '알림',
-            '스터디원 본인 외에 다른 멤버가 없어, 스터디를 탈퇴하시면 스터디가 바로 삭제됩니다. 계속하시겠습니까?',
-            [
-              { text: "취소", style: "cancel" },
-              { 
-                text: "삭제 및 탈퇴", 
-                style: "destructive",
-                onPress: async () => {
-                  try {
+          Alert.alert(
+            '알림',
+            '스터디원 본인 외에 다른 멤버가 없어, 스터디를 탈퇴하시면 스터디가 바로 삭제됩니다. 계속하시겠습니까?',
+            [
+              { text: "취소", style: "cancel" },
+              { 
+                text: "삭제 및 탈퇴", 
+                style: "destructive",
+                onPress: async () => {
+                  try {
                         // 백엔드: DELETE /studies/:studyId/members/:memberId
-                    await api.delete(`/studies/${studyId}/members/${currentUserId}`);
-                    Alert.alert('알림', '성공적으로 스터디가 삭제되었습니다.', [
-                      { text: '확인', onPress: () => navigation.goBack() }
-                    ]);
-                  } catch (error) {
-                    console.error('스터디 삭제 실패:', error);
-                    Alert.alert('오류', '스터디를 삭제하는 도중 오류가 발생했습니다.');
-                  }
-                }
-              }
-            ]
-          );
-          return;
-      } else {
+                    await api.delete(`/studies/${studyId}/members/${currentUserId}`);
+                    Alert.alert('알림', '성공적으로 스터디가 삭제되었습니다.', [
+                      { text: '확인', onPress: () => navigation.goBack() }
+                    ]);
+                  } catch (error) {
+                    console.error('스터디 삭제 실패:', error);
+                    Alert.alert('오류', '스터디를 삭제하는 도중 오류가 발생했습니다.');
+                  }
+                }
+              }
+            ]
+          );
+          return;
+      } else {
             // 방장 외에 멤버가 남았을 경우 (기존 로직 유지)
-          Alert.alert("경고","방장은 스터디를 나가기 전에 다른 스터디원에게 방장 권한을 위임해야 합니다.",[{ text: "확인" }]);
-          return;
-      }
-    } 
+          Alert.alert("경고","방장은 스터디를 나가기 전에 다른 스터디원에게 방장 권한을 위임해야 합니다.",[{ text: "확인" }]);
+          return;
+      }
+    } 
     // 2. 스터디원인 경우 (기존 로직 유지)
     // ... (기존 스터디원 탈퇴 로직) ...
-    try {
-      // 방장이 아닌 스터디원은 바로 탈퇴
-      await api.delete(`/studies/${studyId}/members/${currentUserId}`);
-      Alert.alert('알림', '성공적으로 스터디를 나갔습니다.', [
-        { text: '확인', onPress: () => navigation.goBack() }
-      ]);
-    } catch (error) {
-      console.error('스터디 나가기 실패:', error);
-      Alert.alert('오류', '스터디를 나가는 도중 오류가 발생했습니다.');
-    }
-  };
+    try {
+      // 방장이 아닌 스터디원은 바로 탈퇴
+      await api.delete(`/studies/${studyId}/members/${currentUserId}`);
+      Alert.alert('알림', '성공적으로 스터디를 나갔습니다.', [
+        { text: '확인', onPress: () => navigation.goBack() }
+      ]);
+    } catch (error) {
+      console.error('스터디 나가기 실패:', error);
+      Alert.alert('오류', '스터디를 나가는 도중 오류가 발생했습니다.');
+    }
+  };
 
   const handleDelegateHost = async (newHostId, newHostName) => {
     Alert.alert(
@@ -145,10 +145,10 @@ const Studyroommain = ({ navigation, route }) => {
       const currentUserId = await AsyncStorage.getItem('userId');
 
       const reqs = [
-        { key: 'files',    url: `/studies/${studyId}/files` },
+        { key: 'files',    url: `/studies/${studyId}/files` },
         { key: 'schedule', url: `/schedule/study/${studyId}` },
-        { key: 'posts',    url: `/api/posts/study/${studyId}` },
-        { key: 'study',    url: `/studies/${studyId}` },
+        { key: 'posts',    url: `/api/posts/study/${studyId}` },
+        { key: 'study',    url: `/studies/${studyId}` },
       ];
       console.log('[Studyroommain] GET URLs =', reqs.map(r=>r.url));
       const settled = await Promise.allSettled(reqs.map(r => api.get(r.url)));
@@ -171,10 +171,10 @@ const Studyroommain = ({ navigation, route }) => {
         return settled[i];
       };
 
-      const filesRes    = pick('files');
+      const filesRes    = pick('files');
       const scheduleRes = pick('schedule');
-      const postsRes    = pick('posts');
-      const studyRes    = pick('study');
+      const postsRes    = pick('posts');
+      const studyRes    = pick('study');
 
       if (filesRes.status === 'fulfilled') setFiles(filesRes.value.data);
       
