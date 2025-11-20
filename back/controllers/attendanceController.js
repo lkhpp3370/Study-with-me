@@ -5,6 +5,17 @@ const Study = require('../models/Study');
 const User = require('../models/User');
 
 
+// ✅ 한국 시간(KST, UTC+9) 보정용 상수
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+// ✅ 항상 "한국 기준 현재 시각"을 반환
+function getNowKST() {
+  const now = new Date();
+  // now: 서버 로컬 시간(UTC 등)
+  const utcTime = now.getTime() + now.getTimezoneOffset() * 60 * 1000; // 순수 UTC 기준 ms
+  return new Date(utcTime + KST_OFFSET_MS); // UTC에 +9시간
+}
+
 /** HH:mm -> {h, m} */
 function parseHM(timeStr) {
   if (!timeStr) return null;
@@ -38,7 +49,10 @@ function isWithinCheckWindow(schedule) {
 
   const windowStart = new Date(startDT.getTime() - 5 * 60 * 1000);
   const windowEnd = new Date(endDT.getTime() + 5 * 60 * 1000);
-  const now = new Date();
+  
+  // ✅ 기존: const now = new Date();
+  // ✅ 수정: 한국 시간 기준 "현재 시각"
+  const now = getNowKST();
 
   return now >= windowStart && now <= windowEnd;
 }
@@ -196,7 +210,7 @@ exports.getHostSchedules = async (req, res) => {
       .populate('study', 'title')
       .sort({ startDate: 1 });
 
-    const now = new Date();
+    const now = getNowKST();
     const future = [];
     const past = [];
 
