@@ -22,4 +22,8 @@ router.delete('/:studyId/members/:memberId', studyController.removeMember);
 
 // ✅ 스터디장 위임
 router.patch('/:studyId/delegate-host', studyController.delegateHost);
+
+// ✅ 스터디 삭제
+router.delete('/:studyId', studyController.deleteStudy);
+
 module.exports = router;
