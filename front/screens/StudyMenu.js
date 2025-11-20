@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     width: '75%',
     height: '100%',
     backgroundColor: '#fff',
-    paddingTop: 50,
+    paddingTop: 0,
   },
   menuHeader: {
     flexDirection: 'row',
