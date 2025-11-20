@@ -203,9 +203,12 @@ exports.getMonthlyRanking = async (req, res) => {
 };
 
 /** ✅ 내가 개최한 일정 목록 */
+/** ✅ 내가 개최한 일정 목록 */
 exports.getHostSchedules = async (req, res) => {
   try {
     const { userId } = req.params;
+
+    // 내가 개최한 모든 일정 조회
     const schedules = await Schedule.find({ createdBy: userId })
       .populate('study', 'title')
       .sort({ startDate: 1 });
@@ -219,28 +222,41 @@ exports.getHostSchedules = async (req, res) => {
       let end = combineDateTime(s.endDate || s.startDate, s.endTime);
 
       if (!start || !end) continue;
-      if (end < start) end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+
+      // 자정 넘김 처리 (예: 23:00 ~ 01:00)
+      if (end < start) {
+        end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+      }
 
       if (end >= now) {
+        // 🔹 아직 진행 전/진행중인 일정 (미래)
         future.push({
           _id: s._id,
           title: s.title,
           studyTitle: s.study?.title,
           startDate: s.startDate,
           endDate: s.endDate,
+          // ✅ 프론트에서 필요로 하는 시간 정보 추가
+          startTime: s.startTime,
+          endTime: s.endTime,
           location: s.location,
           canCheck: isWithinCheckWindow(s),
           type: 'future',
         });
       } else {
+        // 🔹 이미 종료된 일정 (과거) - 요약/출석률 포함
         const recs = await Attendance.find({ schedule: s._id });
         const sum = summarize(recs);
+
         past.push({
           _id: s._id,
           title: s.title,
           studyTitle: s.study?.title,
           startDate: s.startDate,
           endDate: s.endDate,
+          // ✅ 과거 일정도 시간 정보 함께 전달
+          startTime: s.startTime,
+          endTime: s.endTime,
           location: s.location,
           summary: sum,
           percent: calcWeightedPercent(sum),
@@ -249,11 +265,14 @@ exports.getHostSchedules = async (req, res) => {
       }
     }
 
+    // 정렬
     future.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
     past.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
 
+    // 미래 → 과거 순으로 합쳐서 반환
     res.json([...future, ...past]);
   } catch (err) {
+    console.error('❌ 개최 일정 조회 실패:', err);
     res.status(500).json({ message: '개최 일정 조회 실패', error: err.message });
   }
 };
